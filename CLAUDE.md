@@ -272,3 +272,26 @@ Each day = a new runnable capability layered on the last. Deploy is de-risked Da
 ## 13. Definition of done (hackathon)
 
 A public Gradio Space **under the build-small-hackathon org** where the user opens a notebook (persisted to Supabase), writes class notes, sees gender at a glance, clicks words for meaning/grammar/pronunciation, asks the coach, and practices via text + spoken dialogue + photo-based + pronunciation exercises — all generated from the current lesson — with an encouraging daily summary and additive points, running the eval-chosen MiniCPM model on ZeroGPU, custom French-themed UI (🎨), plus a 2-min demo video, social post, and Field Notes write-up (📓). Built around MiniCPM (OpenBMB prize). GitHub private; Space public; secrets in Space settings.
+
+---
+
+## 14. Dev log — maintain `DEVLOG.md`
+
+After completing each build day (or any significant session), **append an entry to `DEVLOG.md`** in the repo root. Write each entry twice:
+
+- **For a non-tech reader** (1–3 plain-English sentences: what the user can now *do* or *see* that they couldn't before)
+- **For a tech reader** (bullet list: files changed, decisions made, gotchas hit and how they were resolved)
+
+Format to use for each entry:
+
+```
+## Day N — YYYY-MM-DD — <one-line headline>
+
+### What changed (plain English)
+...
+
+### What changed (technical)
+- ...
+```
+
+This file becomes the Field Notes blog post (📓 badge) with minimal extra work — keep it honest and specific.
