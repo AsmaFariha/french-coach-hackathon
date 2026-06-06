@@ -47,3 +47,23 @@ The app now does something genuinely useful: paste any French text and it instan
 - **Gotcha hit**: Gradio 6 moved `js=` from `Blocks(js=…)` to `launch(js=…)` — fixed after seeing the UserWarning in container logs.
 
 ---
+
+## Day 1.5 — 2026-06-06 — Multi-user support with Hugging Face login
+
+### What changed (plain English)
+
+The app now supports multiple users — each person's notes and data are kept completely separate. On the Hugging Face Space (the public version), visitors will see a "Sign in with Hugging Face" button in the top-right corner; only after signing in can they use the app. When you're running it locally on your own computer, it skips the login step automatically and uses a developer account so you can keep working without friction. If someone tries to use the Space without logging in, they see a polite message asking them to sign in rather than seeing someone else's data.
+
+### What changed (technical)
+
+- **`db/init.sql`** — added `user_id TEXT NOT NULL` to `pages`, `exercises`, `points`, and `mistakes` tables. Added `(user_id, created_at DESC)` indexes on the three active tables for efficient per-user queries. Volume wiped and recreated since no real data existed yet (cleanest migration path).
+- **`app.py`**:
+  - `IS_SPACE = bool(os.environ.get("SPACE_ID"))` — HF sets this env var automatically on Spaces; False locally
+  - `get_user_id(profile: gr.OAuthProfile | None) → str | None` — returns `profile.username` on Space (logged in), `None` on Space (logged out, blocks access), `"dev_user"` locally (bypasses auth)
+  - `gr.LoginButton` / `gr.LogoutButton` rendered conditionally only when `IS_SPACE` is True — avoids broken OAuth clicks in local dev
+  - All event handlers (`process_text`, `toggle_colors`, `show_word_card`) now accept `profile: gr.OAuthProfile | None`; Gradio auto-injects the current session's profile. Unauthenticated calls return a lock-screen prompt instead of content
+  - `on_load(profile)` replaces the old `demo.load` call — checks auth, shows username in header, auto-annotates sample text for authenticated users
+  - `user_display` Markdown component in header shows `👤 username` when logged in, `🛠 local dev` when running locally
+- **Gotcha hit**: `gr.Markdown` doesn't accept `scale=` — must wrap in `gr.Column(scale=0)` to control header layout width
+
+---

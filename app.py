@@ -1,3 +1,4 @@
+import os
 import gradio as gr
 import spacy
 import json
@@ -5,6 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 nlp = spacy.load("fr_core_news_sm")
+
+# True when running as a HF Space; False on local Docker dev
+IS_SPACE = bool(os.environ.get("SPACE_ID"))
 
 # Annotation JSON schema (locked Day 1):
 # { "tokens": [{ "idx": int, "text": str, "pos": str, "gender": str|null,
@@ -18,6 +22,27 @@ SAMPLE_TEXT = (
     "La femme mange une pomme délicieuse avec son ami. "
     "Le livre est ouvert sur le bureau."
 )
+
+# ---------- Auth helpers ----------
+
+def get_user_id(profile: gr.OAuthProfile | None) -> str | None:
+    """
+    Returns the active user_id string, or None if unauthenticated on Space.
+    Locally always returns 'dev_user' so the app works without HF OAuth.
+    """
+    if profile is not None:
+        return profile.username
+    return None if IS_SPACE else "dev_user"
+
+
+def _login_prompt() -> str:
+    return (
+        '<div style="padding:32px;text-align:center;color:#666;'
+        'border:1px dashed #ccc;border-radius:8px;margin-top:16px">'
+        '<div style="font-size:1.4rem;margin-bottom:8px">🔒</div>'
+        '<div style="font-size:1rem">Please sign in with your Hugging Face account to use French Coach.</div>'
+        '</div>'
+    )
 
 # ---------- NLP helpers ----------
 
@@ -102,19 +127,46 @@ def _legend_html(colors_on: bool) -> str:
     )
 
 
-def process_text(text: str, colors_on: bool):
+def _empty_card() -> str:
+    return (
+        '<div style="color:#aaa;padding:18px;font-size:0.95rem">'
+        "Click any word to see its gender, lemma, and part of speech."
+        "</div>"
+    )
+
+# ---------- Event handlers (all accept profile for auth) ----------
+
+def on_load(profile: gr.OAuthProfile | None):
+    """Fires on page load. Returns (user_display_md, html_out, ann_state)."""
+    user_id = get_user_id(profile)
+    if user_id is None:
+        return (
+            gr.Markdown(visible=False),
+            _login_prompt(),
+            "",
+        )
+    label = f"👤 **{user_id}**" if user_id != "dev_user" else "🛠 *local dev*"
+    html, ann = process_text(SAMPLE_TEXT, True, profile)
+    return gr.Markdown(label, visible=True), html, ann
+
+
+def process_text(text: str, colors_on: bool, profile: gr.OAuthProfile | None):
+    if get_user_id(profile) is None:
+        return _login_prompt(), ""
     ann  = annotate(text)
     html = render_html(ann, colors_on)
     return html, json.dumps(ann, ensure_ascii=False)
 
 
-def toggle_colors(ann_json: str, colors_on: bool):
-    if not ann_json:
+def toggle_colors(ann_json: str, colors_on: bool, profile: gr.OAuthProfile | None):
+    if not ann_json or get_user_id(profile) is None:
         return ""
     return render_html(json.loads(ann_json), colors_on)
 
 
-def show_word_card(click_data: str):
+def show_word_card(click_data: str, profile: gr.OAuthProfile | None):
+    if get_user_id(profile) is None:
+        return _login_prompt()
     if not click_data:
         return _empty_card()
     try:
@@ -155,14 +207,6 @@ def show_word_card(click_data: str):
         f'border-radius:6px;background:#f5f5f5;cursor:pointer;font-size:0.9rem">'
         f'🔊 Hear it</button>'
         f'</div>'
-    )
-
-
-def _empty_card() -> str:
-    return (
-        '<div style="color:#aaa;padding:18px;font-size:0.95rem">'
-        "Click any word to see its gender, lemma, and part of speech."
-        "</div>"
     )
 
 
@@ -227,13 +271,22 @@ PAGE_JS = """
 # ---------- UI ----------
 
 with gr.Blocks(title="French Coach") as demo:
-    gr.Markdown(
-        "## French Coach\n"
-        "Paste your class notes, toggle gender colors on nouns, click any word for details."
-    )
 
-    ann_state = gr.State("")  # holds annotation JSON between events
+    ann_state = gr.State("")
 
+    # ── Header ──────────────────────────────────────────────────────────────
+    with gr.Row(equal_height=True):
+        with gr.Column(scale=4):
+            gr.Markdown("## 🇫🇷 French Coach")
+        with gr.Column(scale=1, min_width=160):
+            user_display = gr.Markdown(visible=False)
+        if IS_SPACE:
+            with gr.Column(scale=0, min_width=130):
+                gr.LoginButton(min_width=120)
+            with gr.Column(scale=0, min_width=110):
+                gr.LogoutButton(min_width=100)
+
+    # ── Main workspace ───────────────────────────────────────────────────────
     with gr.Row():
         with gr.Column(scale=3):
             text_input = gr.Textbox(
@@ -258,6 +311,7 @@ with gr.Blocks(title="French Coach") as demo:
                 label="click-data",
             )
 
+    # ── Event wiring ─────────────────────────────────────────────────────────
     annotate_btn.click(
         fn=process_text,
         inputs=[text_input, colors_toggle],
@@ -274,9 +328,8 @@ with gr.Blocks(title="French Coach") as demo:
         outputs=[word_card],
     )
     demo.load(
-        fn=process_text,
-        inputs=[text_input, colors_toggle],
-        outputs=[html_out, ann_state],
+        fn=on_load,
+        outputs=[user_display, html_out, ann_state],
     )
 
 if __name__ == "__main__":
