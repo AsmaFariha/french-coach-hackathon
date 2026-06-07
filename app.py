@@ -188,7 +188,10 @@ def _page_choices(user_id: str) -> list[tuple[str, str]]:
 
 def chat_fn(message: str, history: list, user_id: str, lesson_text: str):
     if not user_id:
-        yield history + [[message, "Please sign in to chat with your French coach."]]
+        yield history + [
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": "Please sign in to chat with your French coach."},
+        ]
         return
     if not message.strip():
         yield history
@@ -199,16 +202,22 @@ def chat_fn(message: str, history: list, user_id: str, lesson_text: str):
         system += f"\n\nCurrent lesson context:\n{lesson_text[:500]}"
 
     messages = [{"role": "system", "content": system}]
-    for user_msg, assistant_msg in history:
-        if user_msg:
-            messages.append({"role": "user", "content": user_msg})
-        if assistant_msg:
-            messages.append({"role": "assistant", "content": assistant_msg})
+    for item in history:
+        if isinstance(item, dict):
+            messages.append({"role": item["role"], "content": item["content"]})
+        elif isinstance(item, (list, tuple)) and len(item) == 2:
+            if item[0]:
+                messages.append({"role": "user", "content": item[0]})
+            if item[1]:
+                messages.append({"role": "assistant", "content": item[1]})
     messages.append({"role": "user", "content": message})
 
-    history = history + [[message, ""]]
+    history = history + [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": ""},
+    ]
     for chunk in llm.chat(messages, stream=True, max_tokens=600):
-        history[-1][1] += chunk
+        history[-1]["content"] += chunk
         yield history
 
 # ── Text exercise handlers ────────────────────────────────────────────────────

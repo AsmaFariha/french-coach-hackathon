@@ -100,3 +100,26 @@ The app went from a clever annotation demo to a full French learning companion i
 - **`requirements.txt`** — added `Pillow` explicitly.
 
 ---
+
+## LLM Backend Pivot — 2026-06-06 — Switched from OpenBMB to HF Inference (local) + ZeroGPU (Space)
+
+### What changed (plain English)
+
+The free OpenBMB API we were using for the AI stopped accepting our key (returned "Unauthorized"). Rather than wait for it to come back, we switched to a more stable arrangement: when you're running the app locally, it now calls Hugging Face's hosted inference service using your HF token. When the app is deployed as a public Space, it will use ZeroGPU — a free GPU provided by Hugging Face that runs the model directly on the server. Both paths are handled by the same code; a single environment variable (`LLM_BACKEND`) controls which one runs. The working model for local dev is **Qwen/Qwen2.5-7B-Instruct**, which has an active HF Inference endpoint and gives sensible French coaching responses. Vision (photo exercises) still uses the OpenBMB vision endpoint as a fallback — MiniCPM-V isn't yet available on HF Inference.
+
+Also fixed: the Chat Coach tab was broken — it was sending messages in the old Gradio tuple format (pairs of `[user, assistant]` strings) but Gradio 6.16 expects a flat list of `{"role": ..., "content": ...}` dicts. This was the error visible in the screenshot. Multi-turn conversation (context carried across messages) confirmed working after the fix.
+
+### What changed (technical)
+
+- **`llm.py`** (full rewrite) — three-backend router controlled by `LLM_BACKEND` env var:
+  - `huggingface_inference` — `InferenceClient.chat_completion()` from `huggingface_hub >= 0.24`; supports streaming; lazy-init singleton. **Default for local dev.**
+  - `zerogpu` — `@spaces.GPU` decorated function created at *module load time* (required by the ZeroGPU runtime). If `import spaces` fails (not on a Space), gracefully falls back to `openbmb`. **For Space deploy only.**
+  - `openbmb` — original OpenBMB OpenAI-compatible client; kept as legacy fallback. Vision stays on this endpoint.
+- **`.env`** — `LLM_BACKEND=huggingface_inference`, `HUGGINGFACE_MODEL=Qwen/Qwen2.5-7B-Instruct` (tested; confirmed working). OpenBMB keys kept for vision fallback.
+- **`.env.example`** — documents all three backends and why ZeroGPU is Space-only.
+- **`requirements.txt`** — added `huggingface_hub>=0.24` (minimum for `InferenceClient.chat_completion`).
+- **`requirements-space.txt`** (new file) — `transformers>=4.40`, `accelerate>=0.30`, `torch>=2.2`; only installed on the Space (would bloat local image significantly).
+- **`app.py`** — fixed `chat_fn`: history is now built/yielded in Gradio 6 messages format (`{"role": ..., "content": ...}` dicts). History iteration uses `isinstance(item, dict)` to handle both formats gracefully. `history[-1]["content"] += chunk` replaces `history[-1][1] += chunk`.
+- **Gotcha hit**: `openbmb/MiniCPM4.1-8B-Instruct` doesn't exist on HF Hub under that ID. `openbmb/MiniCPM4-8B` exists but has no enabled inference provider. `Qwen/Qwen2.5-7B-Instruct` confirmed working — chat, streaming, and multi-turn all verified inside the Docker container.
+
+---
