@@ -67,3 +67,36 @@ The app now supports multiple users — each person's notes and data are kept co
 - **Gotcha hit**: `gr.Markdown` doesn't accept `scale=` — must wrap in `gr.Column(scale=0)` to control header layout width
 
 ---
+
+## Days 4–9 — 2026-06-06 — LLM word cards, notebook persistence, chat, exercises, gamification
+
+### What changed (plain English)
+
+The app went from a clever annotation demo to a full French learning companion in one session. Click any word and you'll now see its English meaning and a grammar tip fetched live from the AI — shown instantly from cache if you've clicked it before. You can save your lesson notes with one click and the AI gives the page a sensible title automatically; all your saved pages appear in a sidebar and survive a browser refresh. A chat panel lets you ask any French question in plain English and get a helpful, encouraging answer. The Exercises tab has four types of practice generated directly from whatever you're studying: fill-in-the-blank, spoken dialogue (type your lines, the app reads the agent's lines aloud), photo-based exercises (upload a café menu or street sign and get French exercises from it), and pronunciation practice (speak a phrase, the app transcribes it and gives gentle feedback). Every action earns points — they only ever go up — and the Summary tab shows an encouraging recap of the day's wins.
+
+### What changed (technical)
+
+**New modules (all in root):**
+- **`nlp.py`** — spaCy helpers extracted from `app.py`: `annotate()`, `render_html()`, `_legend()`. Lazy-loads model on first call.
+- **`llm.py`** — OpenBMB API clients (text + vision). Auto-detects served model name via `/v1/models`; falls back to env var `MINICPM_MODEL` / `MINICPM_VISION_MODEL`, then hardcoded name. `chat()` supports streaming via generator. `chat_json()` strips markdown code fences before parsing. `get_word_meaning()` and `generate_page_title()` are thin wrappers over `chat_json`.
+- **`prompts.py`** — All LLM prompt templates in one place. Encouraging-tone constraint enforced here: feedback prompts explicitly ban the words *wrong, error, mistake, fail, weak*. Prompts for: word meaning, page title, text exercise, dialogue scene, dialogue feedback, visual exercise, daily summary, pronunciation target, pronunciation feedback.
+- **`db.py`** — `get_cursor()` context manager. New connection per call (psycopg2 thread-safety). Commits on clean exit, rolls back on exception.
+- **`models.py`** — `Page` and `Exercise` dataclasses mirroring DB schema.
+- **`notebook.py`** — `save_page()` (LLM title → DB insert), `list_pages()`, `get_page()`, `update_annotations()`.
+- **`exercises.py`** — `generate_text_exercise()`, `generate_dialogue()`, `dialogue_feedback()`, `generate_visual_exercise()` (PIL → base64 → vision LLM → text LLM), `generate_pronunciation_target()`, `get_pronunciation_feedback()`. All save to `exercises` table. HTML renderers co-located with generators.
+- **`gamify.py`** — `try_daily_open()` (once-per-day guard), `add_points()`, `get_total_points()`, `get_daily_stats()` (5-column single-query), `get_daily_summary()` (LLM-generated with fallback). Point values: daily_open=5, saved_lesson=10, exercise_done=5, dialogue_turn=3, pronunciation=5, word_explored=1, photo_exercise=8.
+
+**`app.py` (major rewrite):**
+- 4-tab layout: Notebook | Chat | Exercises | Summary using `gr.Tabs`
+- `user_id_state = gr.State(None)` set in `on_load` — all handlers use this instead of threading `profile` everywhere
+- **Day 4 word card** — `show_word_card()` is now a generator: yields basic spaCy card immediately (< 1ms), then yields LLM-enriched card after API call. Meaning cached in `ann_state["meanings"][lemma]` so repeat clicks are instant. Points awarded on first click per word.
+- **Day 5 notebook** — save/load/sidebar wired up; `pages_dropdown` populated on load and after save.
+- **Day 6 chat** — `gr.Chatbot` with streaming via generator; lesson text passed as context in system prompt via `additional_inputs`.
+- **Day 7 dialogue** — `dialogue_state` holds full JSON + replies list; each `send_dialogue_reply()` call advances the turn, fetches LLM feedback, and updates the transcript HTML.
+- **Day 8 visual** — `gr.Image(type="pil")` → PIL Image passed to `exercises.generate_visual_exercise()`.
+- **Day 8 gamification** — points awarded for every meaningful action; Summary tab triggers `get_daily_summary()`.
+- **Day 9 pronunciation** — `speak_btn.click(fn=None, js=...)` runs Web Speech API entirely client-side (no Python); transcript lands in the `pronunciation-input` textbox via the same React-setter trick as the word-click bridge.
+- **Gotcha hit**: `theme=` also moved to `launch()` in Gradio 6 (same as `js=`).
+- **`requirements.txt`** — added `Pillow` explicitly.
+
+---

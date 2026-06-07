@@ -4,3 +4,4 @@ spacy
 python-dotenv
 openai
 psycopg2-binary
+Pillow
