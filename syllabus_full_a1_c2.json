@@ -1,0 +1,685 @@
+{
+  "framework": "CEFR A1-C2",
+  "target_levels": [
+    "A1",
+    "A2",
+    "B1",
+    "B2",
+    "C1",
+    "C2"
+  ],
+  "concepts": [
+    {
+      "id": "pronunciation_basics",
+      "name": "French Pronunciation & Sound System",
+      "description": "Vowel and consonant sounds, nasal vowels, silent letters, liaisons",
+      "cefr_level": "A1",
+      "family": "pronunciation",
+      "covered_on": null
+    },
+    {
+      "id": "pronouns_personal_subject",
+      "name": "Personal Subject Pronouns",
+      "description": "je, tu, il/elle/on, nous, vous, ils/elles",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "verb_etre_present",
+      "name": "Verb: Être (Present Tense)",
+      "description": "Conjugation of être (to be) in present tense",
+      "cefr_level": "A1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_avoir_present",
+      "name": "Verb: Avoir (Present Tense)",
+      "description": "Conjugation of avoir (to have) in present tense",
+      "cefr_level": "A1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_er_regular_present",
+      "name": "Regular -ER Verbs (Present)",
+      "description": "Conjugation of -ER verbs: parler, aimer, danser, manger, commencer, etc.",
+      "cefr_level": "A1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "noun_gender_articles_definite",
+      "name": "Definite Articles & Noun Gender",
+      "description": "le, la, les; masculine vs feminine nouns",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "noun_gender_articles_indefinite",
+      "name": "Indefinite Articles",
+      "description": "un, une, des; basic usage",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "adjective_agreement_basic",
+      "name": "Basic Adjective Agreement",
+      "description": "Gender agreement of common adjectives; simple placement rules",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "questions_interrogative_words",
+      "name": "Interrogative Words & Simple Questions",
+      "description": "Qu'est-ce que, où, quand, qui, quel, combien; intonation and est-ce que",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "negation_ne_pas",
+      "name": "Negation: Ne...Pas",
+      "description": "Basic negative construction with ne...pas",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "prepositions_basic",
+      "name": "Basic Prepositions",
+      "description": "à, de, en, sur, sous, devant, derrière, près de, avec, sans",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "possessive_adjectives_singular",
+      "name": "Possessive Adjectives (Singular)",
+      "description": "mon, ma, mes, ton, ta, tes, son, sa, ses",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "demonstrative_adjectives",
+      "name": "Demonstrative Adjectives",
+      "description": "ce, cet, cette, ces",
+      "cefr_level": "A1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "connecting_words_basic",
+      "name": "Basic Connecting Words",
+      "description": "et, mais, ou, parce que",
+      "cefr_level": "A1",
+      "family": "discourse",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_personal_info",
+      "name": "Personal Information",
+      "description": "Name, age, nationality, profession, hobbies, interests",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_family",
+      "name": "Family Members",
+      "description": "Père, mère, frère, sœur, grand-mère, grand-père, cousin, tante, oncle",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_food_drink",
+      "name": "Food & Drink",
+      "description": "Bread, cheese, meat, vegetables, fruits, water, wine, coffee, tea",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_cafe_restaurant",
+      "name": "Café & Restaurant",
+      "description": "Menu items, ordering, paying, table setting",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_shopping_clothes",
+      "name": "Shopping & Clothes",
+      "description": "Clothes, prices, sizes, colors, shopping interactions",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_time_calendar",
+      "name": "Time, Calendar & Seasons",
+      "description": "Days, months, seasons, time of day, telling time",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_places_directions",
+      "name": "Places & Directions",
+      "description": "Left, right, straight, near, far, street, square, museum, station",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_daily_activities",
+      "name": "Daily Activities",
+      "description": "Wake up, work, eat, sleep, study, play, go out",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_numbers",
+      "name": "Numbers & Quantities",
+      "description": "0-100, cardinal numbers, 'combien', 'beaucoup', 'peu'",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_descriptive_adjectives",
+      "name": "Descriptive Adjectives",
+      "description": "Grand, petit, beau, vilain, gentil, méchant, heureux, triste, fatigué, malade",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_weather",
+      "name": "Weather",
+      "description": "Il fait beau, il pleut, il neige, il fait froid, il fait chaud",
+      "cefr_level": "A1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "func_greeting_politeness",
+      "name": "Greetings & Politeness",
+      "description": "Bonjour, bonsoir, bonne nuit, s'il vous plaît, merci, excusez-moi",
+      "cefr_level": "A1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_introduction",
+      "name": "Introducing Yourself",
+      "description": "Je m'appelle..., Je suis..., Enchanté(e)",
+      "cefr_level": "A1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_asking_help",
+      "name": "Asking for Help",
+      "description": "Pouvez-vous...?, Parlez plus lentement, s'il vous plaît",
+      "cefr_level": "A1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_opinions_preferences",
+      "name": "Expressing Preferences",
+      "description": "J'aime, je n'aime pas, je préfère, c'est intéressant",
+      "cefr_level": "A1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "verb_ir_regular_present",
+      "name": "Regular -IR Verbs (Present)",
+      "description": "Finir, choisir, remplir, etc.",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_re_regular_present",
+      "name": "Regular -RE Verbs (Present)",
+      "description": "Vendre, attendre, perdre, etc.",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_passé_composé",
+      "name": "Passé Composé (Past Tense)",
+      "description": "Formation with avoir/être + past participle; regular and common irregular verbs",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_imparfait_intro",
+      "name": "Imparfait (Imperfect Tense)",
+      "description": "Formation and basic usage; contrast with passé composé",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_reflexive",
+      "name": "Reflexive Verbs (Pronominal)",
+      "description": "Se lever, s'appeler, se laver, se coucher, etc.",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "pronouns_object_direct",
+      "name": "Direct Object Pronouns",
+      "description": "me, te, le, la, nous, vous, les",
+      "cefr_level": "A2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "pronouns_object_indirect",
+      "name": "Indirect Object Pronouns",
+      "description": "me, te, lui, nous, vous, leur",
+      "cefr_level": "A2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "negation_extended",
+      "name": "Extended Negation",
+      "description": "Ne...jamais, ne...plus, ne...rien, ne...personne, ni...ni",
+      "cefr_level": "A2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "conditional_present",
+      "name": "Conditional (Present)",
+      "description": "Formation and basic usage; polite requests",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "futur_proche",
+      "name": "Futur Proche (Near Future)",
+      "description": "aller + infinitive",
+      "cefr_level": "A2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_restaurant_ordering",
+      "name": "Restaurant & Ordering (Advanced)",
+      "description": "Reservation, menu terms, special requests, complaints",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_travel_transport",
+      "name": "Travel & Transport",
+      "description": "Train, plane, car, bus, ticket, reservation, journey",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_accommodation",
+      "name": "Accommodation",
+      "description": "Hotel, room types, reservation, amenities, check-in/out",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_body_health",
+      "name": "Body Parts & Health",
+      "description": "Head, arm, leg, illness, doctor, pharmacy, symptoms",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_emotions_states",
+      "name": "Emotions & States",
+      "description": "Happy, sad, angry, afraid, bored, stressed, calm",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_hobbies_leisure",
+      "name": "Hobbies & Leisure",
+      "description": "Sports, music, reading, cinema, theater, games",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_school_education",
+      "name": "School & Education",
+      "description": "Subjects, grades, exams, teachers, homework",
+      "cefr_level": "A2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "func_describing_past_events",
+      "name": "Describing Past Events",
+      "description": "Telling stories, recounting what happened",
+      "cefr_level": "A2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_making_suggestions",
+      "name": "Making Suggestions",
+      "description": "On pourrait..., Et si on...?, Pourquoi pas...?",
+      "cefr_level": "A2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_expressing_agreement_disagreement",
+      "name": "Agreement & Disagreement",
+      "description": "D'accord, je suis d'accord, je ne suis pas d'accord, c'est vrai",
+      "cefr_level": "A2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "verb_futur_simple",
+      "name": "Futur Simple (Simple Future)",
+      "description": "Formation and usage; future planning",
+      "cefr_level": "B1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_subjonctif_present",
+      "name": "Subjonctif (Present Subjunctive)",
+      "description": "Formation; usage after expressions of necessity, desire, emotion",
+      "cefr_level": "B1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_irregular_common",
+      "name": "Common Irregular Verbs",
+      "description": "Aller, venir, pouvoir, vouloir, devoir, savoir, faire in all tenses",
+      "cefr_level": "B1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "pronouns_disjunctive",
+      "name": "Disjunctive Pronouns",
+      "description": "moi, toi, lui, elle, nous, vous, eux, elles",
+      "cefr_level": "B1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "pronouns_relative",
+      "name": "Relative Pronouns",
+      "description": "qui, que, où, dont, lequel",
+      "cefr_level": "B1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "adjective_comparison",
+      "name": "Comparison of Adjectives",
+      "description": "Comparative (plus, moins, aussi) and superlative (le plus, le moins)",
+      "cefr_level": "B1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "verb_passé_récent",
+      "name": "Passé Récent (Immediate Past)",
+      "description": "Venir de + infinitive",
+      "cefr_level": "B1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_work_career",
+      "name": "Work & Career",
+      "description": "Job titles, workplace, tasks, interview, salary, CV",
+      "cefr_level": "B1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_technology_internet",
+      "name": "Technology & Internet",
+      "description": "Computer, phone, email, internet, social media",
+      "cefr_level": "B1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_current_affairs",
+      "name": "Current Affairs & News",
+      "description": "Politics, environment, society, economy",
+      "cefr_level": "B1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "func_argumentation",
+      "name": "Argumentation & Reasoning",
+      "description": "Expressing reasons, consequences, conclusions; donc, par conséquent",
+      "cefr_level": "B1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_expressing_doubt_certainty",
+      "name": "Expressing Doubt & Certainty",
+      "description": "Je crois, je pense, il est possible que, c'est sûr",
+      "cefr_level": "B1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_hypothetical_situations",
+      "name": "Hypothetical Situations",
+      "description": "Si + imparfait, conditional; 'et si...'",
+      "cefr_level": "B1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "verb_plusqueparfait",
+      "name": "Plusqueparfait (Pluperfect)",
+      "description": "Formation and usage; sequencing past events",
+      "cefr_level": "B2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_passé_simple",
+      "name": "Passé Simple (Literary Past)",
+      "description": "Recognition and passive understanding; literary texts",
+      "cefr_level": "B2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "verb_conditional_past",
+      "name": "Conditional Past",
+      "description": "aurais, serais; regrets and unfulfilled conditions",
+      "cefr_level": "B2",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "syntax_inversion_literary",
+      "name": "Literary Inversion & Formal Syntax",
+      "description": "Inversion for stylistic effect; complex sentence structures",
+      "cefr_level": "B2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "connectives_advanced",
+      "name": "Advanced Connectives",
+      "description": "Cependant, néanmoins, bien que, alors que, tandis que, au contraire",
+      "cefr_level": "B2",
+      "family": "discourse",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_literature_arts",
+      "name": "Literature & Arts",
+      "description": "Poetry, prose, painting, sculpture, film, music genres",
+      "cefr_level": "B2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_specialized_fields",
+      "name": "Specialized Field Vocabulary",
+      "description": "Academic, scientific, technical terminology by field",
+      "cefr_level": "B2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_formal_register",
+      "name": "Formal Register & Written French",
+      "description": "Business writing, formal letter conventions, administrative language",
+      "cefr_level": "B2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "func_nuanced_argument",
+      "name": "Nuanced Argumentation",
+      "description": "Acknowledging counterarguments, hedging claims, building complex arguments",
+      "cefr_level": "B2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_persuasion_negotiation",
+      "name": "Persuasion & Negotiation",
+      "description": "Convincing, negotiating positions, managing disagreement diplomatically",
+      "cefr_level": "B2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "verb_subjonctif_imparfait",
+      "name": "Subjonctif Imparfait",
+      "description": "Literary subjunctive tense; passive recognition in formal writing",
+      "cefr_level": "C1",
+      "family": "verb_tenses",
+      "covered_on": null
+    },
+    {
+      "id": "register_stylistic_variation",
+      "name": "Stylistic Register Variation",
+      "description": "Adapting tone from casual to formal; rhetorical devices",
+      "cefr_level": "C1",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "idioms_expressions_native",
+      "name": "Native Idioms & Expressions",
+      "description": "Colloquialisms, proverbs, figurative language, cultural references",
+      "cefr_level": "C1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "vocab_abstract_concepts",
+      "name": "Abstract Concepts & Philosophy",
+      "description": "Morality, justice, consciousness, existence, ethics",
+      "cefr_level": "C1",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "func_critical_analysis",
+      "name": "Critical Analysis & Evaluation",
+      "description": "Critiquing texts, evaluating arguments, literary analysis",
+      "cefr_level": "C1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "func_rhetorical_devices",
+      "name": "Rhetorical Devices & Persuasion",
+      "description": "Metaphor, irony, paradox, antithesis, climax for effect",
+      "cefr_level": "C1",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_precision",
+      "name": "Precision & Nuance in Expression",
+      "description": "Fine distinctions between near-synonyms; subtle meaning shades",
+      "cefr_level": "C2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_literary_archaic",
+      "name": "Literary & Archaic French",
+      "description": "Obsolete grammar, historical spellings, classical literary conventions",
+      "cefr_level": "C2",
+      "family": "grammar",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_regional_dialects",
+      "name": "Regional Dialects & Variations",
+      "description": "Belgian, Swiss, Quebec, African French; regional vocabulary",
+      "cefr_level": "C2",
+      "family": "vocabulary",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_professional_writing",
+      "name": "Professional & Academic Writing",
+      "description": "Thesis writing, legal documents, scholarly articles, research papers",
+      "cefr_level": "C2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_cultural_discourse",
+      "name": "Cultural Discourse Mastery",
+      "description": "Participating in intellectual debates, cultural criticism, philosophical discussion",
+      "cefr_level": "C2",
+      "family": "communicative_functions",
+      "covered_on": null
+    },
+    {
+      "id": "mastery_native_fluency",
+      "name": "Native Fluency & Idiom Mastery",
+      "description": "Spontaneous, fluid expression; native-like comprehension of all registers",
+      "cefr_level": "C2",
+      "family": "communicative_functions",
+      "covered_on": null
+    }
+  ]
+}
