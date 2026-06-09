@@ -123,3 +123,27 @@ Also fixed: the Chat Coach tab was broken — it was sending messages in the old
 - **Gotcha hit**: `openbmb/MiniCPM4.1-8B-Instruct` doesn't exist on HF Hub under that ID. `openbmb/MiniCPM4-8B` exists but has no enabled inference provider. `Qwen/Qwen2.5-7B-Instruct` confirmed working — chat, streaming, and multi-turn all verified inside the Docker container.
 
 ---
+
+## Sprint Day 1 — 2026-06-09 — Smart Lesson Browser with Auto-Category Detection
+
+### What changed (plain English)
+
+The sidebar on the Notebook tab is completely new. Instead of a plain dropdown list, it now shows all 40 of your saved lessons in two collapsible sections: **By Date** (newest first) and **By Topic** (auto-detected). Hover over any lesson and a tooltip pops up with the first 100 characters as a preview. Type in the search box to instantly filter by title — no page reload. Click any lesson in either section to load it straight into the editor. The app automatically guesses the topic (Grammar, Food & Dining, Greetings, Weather, etc.) by scanning the first 300 characters of each lesson for French vocabulary patterns; existing lessons got 11 distinct categories assigned on load.
+
+### What changed (technical)
+
+- **`db/init.sql`** — added `metadata JSONB DEFAULT '{}'` column to `pages` table; added GIN index on metadata. Migration applied live via `ALTER TABLE pages ADD COLUMN IF NOT EXISTS metadata JSONB`.
+- **`nlp.py`** — two new functions:
+  - `detect_category(text)` — keyword scoring over 13 topic buckets (Greetings, Numbers, Grammar, Food & Dining, Transportation, Family, Time & Calendar, Shopping, Weather, Daily Life, Health, Places & Directions, Hobbies & Leisure). spaCy NER gives a +1 bonus to LOC-matching categories *only if they already have keyword matches* — NER reinforces, never creates. This prevents `LOC` entities from hijacking every lesson that mentions a city name.
+  - `get_lesson_categories(pages)` — groups a list of page dicts by detected category; returns an alphabetically sorted `dict[category → [pages]]`.
+- **`notebook.py`** — `list_pages()` now queries `LEFT(raw_text, 300) AS snippet` + `metadata->>'category'` in a single query. If stored category is blank (all pre-existing pages), it falls back to `detect_category(snippet)`. `save_page()` now writes detected category into `metadata` at insert time so future queries are instant.
+- **`app.py`** — major sidebar refactor:
+  - `_safe_attr(s)` — HTML attribute escaper (handles `"`, `'`, `&`, newlines).
+  - `_render_sidebar_html(user_id)` — builds the full collapsible sidebar HTML: search input, By Date `<details open>`, By Topic `<details>` (collapsed by default), hover tooltip div. Each lesson item is a `<div class="fc-lesson-item" data-page-id="..." data-preview="...">` card.
+  - Removed `_page_choices()` and all `gr.Dropdown(choices=...)` returns from handlers. Every handler that previously returned a Dropdown update now returns `_render_sidebar_html(user_id)` instead.
+  - Sidebar UI: `pages_dropdown` (Dropdown) → `pages_sidebar_html` (HTML) + `sidebar_page_click` (hidden Textbox). The hidden textbox receives a page UUID from JS and triggers `load_page_handler`.
+  - Event wiring: `pages_dropdown.change` → `sidebar_page_click.change`; `refresh_pages_btn` → `refresh_sidebar_btn`.
+  - `PAGE_JS` extended: `window.fcSidebarSearch(q)` filters `.fc-lesson-item` divs client-side; mouseover/mousemove/mouseout handlers position the preview tooltip; click on `.fc-lesson-item` highlights it, hides tooltip, and writes page UUID to the hidden Gradio textbox using the React-setter trick.
+- **Gotcha hit**: spaCy NER assigns `LOC` to many common French nouns (any proper noun can be detected as location). Giving unconditional +2 bonus caused 23/40 lessons to land in "Places & Directions". Fix: NER only reinforces (`+1`) categories that already have keyword matches. Result: 40 lessons spread across 11 categories.
+
+---

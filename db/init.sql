@@ -7,9 +7,11 @@ CREATE TABLE IF NOT EXISTS pages (
     date DATE NOT NULL DEFAULT CURRENT_DATE,
     raw_text TEXT NOT NULL,
     annotations JSONB DEFAULT '{}'::jsonb,
+    metadata JSONB DEFAULT '{}'::jsonb,   -- category, summary, tags (for smart browser)
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pages_user ON pages(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pages_metadata ON pages USING gin(metadata);
 
 CREATE TABLE IF NOT EXISTS concepts (
     id TEXT PRIMARY KEY,

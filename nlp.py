@@ -79,3 +79,132 @@ def _legend(colors_on: bool) -> str:
         f'<span style="border-bottom:2px solid {FEM_COLOR};padding:0 4px">fém.</span>'
         f'</div>'
     )
+
+
+# ── Category detection ────────────────────────────────────────────────────────
+
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "Greetings": [
+        "bonjour", "salut", "bonsoir", "bonne nuit", "au revoir", "à bientôt",
+        "enchanté", "bienvenue", "merci", "s'il vous plaît", "excusez", "pardon",
+        "comment allez", "comment vas", "je m'appelle", "présentations",
+    ],
+    "Numbers": [
+        "zéro", "un ", "deux", "trois", "quatre", "cinq", "six", "sept", "huit",
+        "neuf", "dix", "vingt", "trente", "cent", "mille", "nombre", "chiffre",
+        "numéro", "combien", "compter", "premier", "deuxième",
+    ],
+    "Grammar": [
+        "verbe", "nom ", "adjectif", "adverbe", "conjugaison", "accord",
+        "pluriel", "singulier", "genre", "article", "pronom", "préposition",
+        "infinitif", "participe", "subjonctif", "imparfait", "passé composé",
+        "futur", "conditionnel", "être", "avoir", "aller", "faire",
+        "féminin", "masculin", "accord",
+    ],
+    "Food & Dining": [
+        "manger", "restaurant", "café", "menu", "plat", "entrée", "dessert",
+        "boisson", "cuisine", "repas", "boire", "faim", "soif", "commander",
+        "addition", "boulangerie", "pain", "fromage", "vin", "eau", "salade",
+        "viande", "poisson", "légume", "fruit",
+    ],
+    "Transportation": [
+        "bus", "métro", "train", "voiture", "vélo", "taxi", "avion",
+        "gare", "aéroport", "route", "voyager", "billet", "station",
+        "conduire", "prendre", "ligne", "direction", "quai", "arrêt",
+    ],
+    "Family": [
+        "famille", "mère", "père", "frère", "sœur", "enfant", "parent",
+        "grand-mère", "grand-père", "fils", "fille", "mari", "femme",
+        "oncle", "tante", "cousin", "neveu", "nièce", "bébé",
+    ],
+    "Time & Calendar": [
+        "heure", "minute", "seconde", "jour", "semaine", "mois", "année",
+        "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche",
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "aujourd'hui", "demain", "hier", "maintenant", "matin", "soir", "midi",
+    ],
+    "Shopping": [
+        "acheter", "magasin", "prix", "argent", "euro", "boutique", "marché",
+        "vêtement", "soldes", "payer", "cher", "bon marché", "taille",
+        "coûter", "centimes", "monnaie", "caisse", "vendeur",
+    ],
+    "Weather": [
+        "temps", "pluie", "pleuvoir", "soleil", "ensoleillé", "nuage",
+        "froid", "chaud", "neige", "neiger", "vent", "température",
+        "météo", "saison", "orage", "brouillard", "degré",
+    ],
+    "Daily Life": [
+        "maison", "appartement", "chambre", "salon", "salle de bain",
+        "dormir", "travailler", "école", "bureau", "quotidien",
+        "matin", "réveiller", "habiter", "vivre", "routine",
+    ],
+    "Health": [
+        "santé", "médecin", "docteur", "hôpital", "pharmacie", "médicament",
+        "malade", "douleur", "mal", "fièvre", "rhume", "allergie",
+        "rendez-vous", "symptôme", "corps",
+    ],
+    "Places & Directions": [
+        "tout droit", "tournez à droite", "tournez à gauche", "prenez la rue",
+        "à droite", "à gauche", "rue ", "avenue ", "boulevard", "arrondissement",
+        "carte routière", "plan de ville", "itinéraire", "carrefour",
+        "code postal", "adresse postale",
+    ],
+    "Hobbies & Leisure": [
+        "sport", "musique", "cinéma", "lecture", "voyager", "jouer",
+        "regarder", "écouter", "aimer", "loisir", "vacances", "week-end",
+        "danse", "peinture", "jardinage",
+    ],
+}
+
+_NER_TO_CATEGORY = {
+    "LOC": "Places & Directions",
+    "GPE": "Places & Directions",
+    "FAC": "Places & Directions",
+}
+
+
+def detect_category(text: str) -> str:
+    """Return the most likely topic category for a French lesson excerpt.
+
+    Combines keyword scoring with a light spaCy NER pass.  Runs in <5 ms
+    on a 300-char snippet because the model is already loaded.
+    """
+    if not text:
+        return "General"
+    text_lower = text.lower()
+    scores: dict[str, int] = {}
+
+    # Keyword scoring
+    for cat, keywords in _CATEGORY_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in text_lower)
+        if score:
+            scores[cat] = score
+
+    # NER reinforcement: only boost a category that already has keyword matches.
+    # This prevents NER alone from overriding clear keyword signals.
+    try:
+        doc = get_nlp()(text[:200])
+        for ent in doc.ents:
+            bonus_cat = _NER_TO_CATEGORY.get(ent.label_)
+            if bonus_cat and bonus_cat in scores:
+                scores[bonus_cat] += 1
+    except Exception:
+        pass
+
+    if not scores:
+        return "General"
+    return max(scores, key=scores.__getitem__)
+
+
+def get_lesson_categories(pages: list[dict]) -> dict[str, list[dict]]:
+    """Group a list of page dicts by their detected category.
+
+    Each page dict must have at least {id, title, date, category}.
+    Returns an ordered dict (alphabetical by category name) mapping
+    category → [page, ...].
+    """
+    groups: dict[str, list[dict]] = {}
+    for page in pages:
+        cat = page.get("category") or "General"
+        groups.setdefault(cat, []).append(page)
+    return dict(sorted(groups.items()))

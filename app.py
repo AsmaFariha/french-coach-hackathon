@@ -20,6 +20,53 @@ SAMPLE_TEXT = (
     "Le livre est ouvert sur le bureau."
 )
 
+CUSTOM_CSS = """
+/* ── French Coach — custom theme ────────────────────────────────────────── */
+
+/* Warm paper background */
+.gradio-container { background: #FDFAF3 !important; max-width: 1280px !important; margin: 0 auto !important; }
+
+/* App title */
+#app-title h2 {
+    color: #002395;
+    font-size: 2rem;
+    border-bottom: 3px solid #ED2939;
+    padding-bottom: 6px;
+    margin-bottom: 0;
+    display: inline-block;
+}
+
+/* Tab selected indicator */
+.tabs > div > .tab-nav button.selected {
+    color: #002395 !important;
+    border-bottom-color: #ED2939 !important;
+    font-weight: 700;
+}
+.tabs > div > .tab-nav button { font-size: 0.95rem; letter-spacing: 0.01em; }
+
+/* Pages sidebar accent */
+#pages-sidebar > .block { border-top: 3px solid #002395 !important; border-radius: 0 0 8px 8px; }
+
+/* Delete confirm bar */
+#delete-confirm-row {
+    background: #fff8e1 !important;
+    border: 1px solid #f0c040 !important;
+    border-radius: 8px !important;
+    padding: 4px 12px !important;
+    align-items: center !important;
+}
+
+/* Word card area */
+#word-card-area > .block { background: #f7f9ff; border-top: 3px solid #4A90D9 !important; border-radius: 0 0 8px 8px; }
+
+/* Annotated text tokens */
+span[data-token] { cursor: pointer; transition: filter 0.12s; }
+span[data-token]:hover { filter: brightness(0.85); }
+
+/* Gender legend pills */
+.gender-legend span { border-radius: 12px; padding: 2px 10px; font-size: 0.82rem; font-weight: 600; }
+"""
+
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
 def get_user_id(profile: gr.OAuthProfile | None) -> str | None:
@@ -75,10 +122,8 @@ def show_word_card(click_data: str, ann_json: str, user_id: str):
     pos    = d.get("pos", "")
     lemma  = d.get("lemma", text)
 
-    # Instant basic card
     yield _basic_card(text, lemma, pos, gender), ann_json
 
-    # Check meaning cache in ann_state
     ann       = json.loads(ann_json) if ann_json else {"tokens": [], "meanings": {}}
     meanings  = ann.get("meanings", {})
     cache_key = lemma or text
@@ -140,49 +185,173 @@ def _enriched_card(text, lemma, pos, gender, meaning_data: dict) -> str:
     )
 
 
+def _safe_attr(s: str) -> str:
+    """Escape a string for use inside an HTML attribute value."""
+    return (s or "").replace("&", "&amp;").replace('"', "&quot;").replace("'", "&#39;").replace("\n", " ")
+
+
+def _render_sidebar_html(user_id: str) -> str:
+    """Build the full collapsible lesson-browser sidebar HTML."""
+    if not user_id:
+        return (
+            '<div style="color:#aaa;padding:14px;font-size:0.88rem">'
+            'Sign in to see your lessons.</div>'
+        )
+    try:
+        pages = nb.list_pages(user_id)
+    except Exception as exc:
+        return f'<div style="color:#c00;padding:12px;font-size:0.85rem">⚠ Could not load lessons: {exc}</div>'
+
+    if not pages:
+        return (
+            '<div style="color:#aaa;padding:14px;font-size:0.88rem">'
+            'No lessons saved yet.<br>Paste French text above and click 💾 Save.</div>'
+        )
+
+    import nlp as _nlp
+
+    def _lesson_item(p: dict, extra_style: str = "") -> str:
+        pid   = p["id"]
+        title = (p.get("title") or "Untitled")
+        date  = p.get("date", "")
+        prev  = _safe_attr(p.get("preview", ""))
+        t_safe = _safe_attr(title)
+        short  = title[:42] + ("…" if len(title) > 42 else "")
+        return (
+            f'<div class="fc-lesson-item" data-page-id="{pid}" '
+            f'data-title="{t_safe}" data-date="{date}" data-preview="{prev}" '
+            f'style="padding:7px 10px;margin:2px 0;border-radius:6px;cursor:pointer;'
+            f'border:1px solid transparent;transition:background 0.12s,border-color 0.12s;{extra_style}">'
+            f'<div style="font-weight:600;font-size:0.84rem;color:#111;line-height:1.35">{short}</div>'
+            f'<div style="font-size:0.74rem;color:#888;margin-top:2px">{date}</div>'
+            f'</div>'
+        )
+
+    # ── By Date ──────────────────────────────────────────────────────────────
+    date_items = "".join(_lesson_item(p) for p in pages)
+
+    # ── By Topic ─────────────────────────────────────────────────────────────
+    grouped = _nlp.get_lesson_categories(pages)
+    topic_html = ""
+    for cat, cat_pages in grouped.items():
+        items = "".join(_lesson_item(p) for p in cat_pages)
+        topic_html += (
+            f'<div style="margin-bottom:6px">'
+            f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;'
+            f'letter-spacing:0.06em;color:#888;padding:6px 8px 2px">'
+            f'{cat}&thinsp;<span style="font-weight:400">({len(cat_pages)})</span></div>'
+            f'{items}'
+            f'</div>'
+        )
+
+    return (
+        f'<div id="fc-sidebar-panel" style="font-family:system-ui,sans-serif">'
+        # Search box
+        f'<div style="margin-bottom:8px">'
+        f'<input id="fc-search" type="text" placeholder="🔍 Search lessons…" '
+        f'oninput="window.fcSidebarSearch(this.value)" '
+        f'style="width:100%;box-sizing:border-box;padding:7px 10px;'
+        f'border:1px solid #ddd;border-radius:6px;font-size:0.86rem;'
+        f'background:#fff;outline:none;color:#111" />'
+        f'</div>'
+        # By Date section (open by default)
+        f'<details open style="margin-bottom:6px">'
+        f'<summary style="cursor:pointer;padding:5px 2px;font-weight:700;'
+        f'font-size:0.84rem;color:#002395;user-select:none;list-style:none;'
+        f'display:flex;align-items:center;gap:5px">'
+        f'📅 By Date <span style="font-weight:400;font-size:0.75rem;color:#888">({len(pages)})</span>'
+        f'</summary>'
+        f'<div id="fc-date-list" style="margin-top:3px">{date_items}</div>'
+        f'</details>'
+        # By Topic section (collapsed by default)
+        f'<details>'
+        f'<summary style="cursor:pointer;padding:5px 2px;font-weight:700;'
+        f'font-size:0.84rem;color:#002395;user-select:none;list-style:none;'
+        f'display:flex;align-items:center;gap:5px">'
+        f'🏷️ By Topic'
+        f'</summary>'
+        f'<div id="fc-topic-list" style="margin-top:3px">{topic_html}</div>'
+        f'</details>'
+        # Hover preview tooltip (positioned by JS)
+        f'<div id="fc-preview-tip" style="display:none;position:fixed;z-index:9999;'
+        f'max-width:280px;background:#1e2430;color:#e8eaf0;font-size:0.8rem;'
+        f'padding:8px 12px;border-radius:7px;pointer-events:none;line-height:1.55;'
+        f'box-shadow:0 4px 16px rgba(0,0,0,0.28)"></div>'
+        f'</div>'
+    )
+
+
+def _page_btns_hidden():
+    """Return gr.update calls to hide update/delete buttons and confirm row."""
+    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
+
+
+def _page_btns_visible():
+    """Return gr.update calls to show update/delete buttons, hide confirm row."""
+    return gr.update(visible=True), gr.update(visible=True), gr.update(visible=False)
+
+
 def save_page_handler(text: str, ann_json: str, user_id: str):
     if not user_id:
-        return "Please sign in first.", gr.Dropdown(choices=[])
+        return "Please sign in first.", _render_sidebar_html(user_id), None, *_page_btns_hidden()
     if not text.strip():
-        return "Nothing to save — type or paste some French text first.", gr.Dropdown()
+        return "Nothing to save — type or paste some French text first.", _render_sidebar_html(user_id), None, *_page_btns_hidden()
     try:
         ann = json.loads(ann_json) if ann_json else {}
         page_id, title = nb.save_page(user_id, text, ann)
         gamify.add_points(user_id, "saved_lesson")
-        choices = _page_choices(user_id)
-        return f"✅ Saved as **{title}**", gr.Dropdown(choices=choices, value=page_id)
+        return f"✅ Saved as **{title}**", _render_sidebar_html(user_id), page_id, *_page_btns_visible()
     except Exception as e:
-        return f"⚠ Could not save: {e}", gr.Dropdown()
+        return f"⚠ Could not save: {e}", _render_sidebar_html(user_id), None, *_page_btns_hidden()
 
 
 def load_pages_list(user_id: str):
-    if not user_id:
-        return gr.Dropdown(choices=[])
-    return gr.Dropdown(choices=_page_choices(user_id))
+    return _render_sidebar_html(user_id)
 
 
 def load_page_handler(page_id: str, colors_on: bool, user_id: str):
     if not page_id or not user_id:
-        return "", "", ""
+        return "", "", "", None, *_page_btns_hidden()
     try:
         page = nb.get_page(page_id, user_id)
         if not page:
-            return "", "", ""
+            return "", "", "", None, *_page_btns_hidden()
         ann = page.get("annotations") or {}
         if isinstance(ann, str):
             ann = json.loads(ann)
         html = nlp.render_html(ann, colors_on)
-        return page["raw_text"], html, json.dumps(ann, ensure_ascii=False)
+        return page["raw_text"], html, json.dumps(ann, ensure_ascii=False), page_id, *_page_btns_visible()
     except Exception as e:
-        return "", f"⚠ Could not load page: {e}", ""
+        return "", f"⚠ Could not load page: {e}", "", None, *_page_btns_hidden()
 
 
-def _page_choices(user_id: str) -> list[tuple[str, str]]:
+def update_page_handler(text: str, ann_json: str, page_id: str, user_id: str):
+    if not page_id or not user_id:
+        return "⚠ No page loaded to update.", _render_sidebar_html(user_id)
+    if not text.strip():
+        return "Nothing to save.", _render_sidebar_html(user_id)
     try:
-        pages = nb.list_pages(user_id)
-        return [(f"{p['title']} ({p['date']})", p["id"]) for p in pages]
-    except Exception:
-        return []
+        ann = json.loads(ann_json) if ann_json else {}
+        title = nb.update_page(page_id, user_id, text, ann)
+        return f"✅ Updated **{title}**", _render_sidebar_html(user_id)
+    except Exception as e:
+        return f"⚠ Could not update: {e}", _render_sidebar_html(user_id)
+
+
+def delete_page_handler(page_id: str, user_id: str):
+    if not page_id or not user_id:
+        return "⚠ No page selected.", _render_sidebar_html(user_id), "", "", "", None, *_page_btns_hidden()
+    try:
+        nb.delete_page(page_id, user_id)
+        return (
+            "🗑️ Page deleted.",
+            _render_sidebar_html(user_id),
+            "", "", "",
+            None,
+            *_page_btns_hidden(),
+        )
+    except Exception as e:
+        return f"⚠ Could not delete: {e}", _render_sidebar_html(user_id), "", "", "", page_id, *_page_btns_visible()
 
 # ── Chat tab handlers ─────────────────────────────────────────────────────────
 
@@ -259,7 +428,6 @@ def send_dialogue_reply(reply: str, state_json: str, user_id: str):
     replies  = state["replies"]
     hint     = ex.get_next_user_hint(dialogue, len(replies))
 
-    # Get feedback
     fb_data  = ex.dialogue_feedback(reply, hint, dialogue.get("scene",""), user_id)
     feedback = fb_data.get("feedback","")
     natural  = fb_data.get("natural_version","")
@@ -348,19 +516,61 @@ def on_load(profile: gr.OAuthProfile | None):
             pass
 
     if user_id is None:
-        return None, gr.Markdown(visible=False), _login_prompt(), "", gr.Dropdown(choices=[])
+        return None, gr.Markdown(visible=False), _login_prompt(), "", _render_sidebar_html(None)
 
     label   = f"👤 **{user_id}**" if user_id != "dev_user" else "🛠 *local dev*"
     html, ann = process_text(SAMPLE_TEXT, True, user_id)
-    choices = _page_choices(user_id)
-    return user_id, gr.Markdown(label, visible=True), html, ann, gr.Dropdown(choices=choices)
+    return user_id, gr.Markdown(label, visible=True), html, ann, _render_sidebar_html(user_id)
 
 # ── Page-load JS ──────────────────────────────────────────────────────────────
 
 PAGE_JS = """
 () => {
     function setup() {
+
+        // ── Sidebar: search filter ────────────────────────────────────────────
+        window.fcSidebarSearch = function(q) {
+            q = (q || '').toLowerCase().trim();
+            document.querySelectorAll('.fc-lesson-item').forEach(function(el) {
+                const title = (el.getAttribute('data-title') || '').toLowerCase();
+                el.style.display = (!q || title.includes(q)) ? '' : 'none';
+            });
+        };
+
+        // ── Sidebar: hover preview tooltip ────────────────────────────────────
+        document.addEventListener('mouseover', function(e) {
+            const item = e.target.closest('.fc-lesson-item');
+            const tip  = document.getElementById('fc-preview-tip');
+            if (!tip) return;
+            if (item) {
+                const preview = item.getAttribute('data-preview') || '';
+                if (preview) {
+                    tip.textContent = preview;
+                    tip.style.display = 'block';
+                }
+            } else if (!e.target.closest('#fc-preview-tip')) {
+                tip.style.display = 'none';
+            }
+        });
+        document.addEventListener('mousemove', function(e) {
+            const tip = document.getElementById('fc-preview-tip');
+            if (tip && tip.style.display !== 'none') {
+                const x = Math.min(e.clientX + 16, window.innerWidth - 296);
+                tip.style.left = x + 'px';
+                tip.style.top  = (e.clientY - 8) + 'px';
+            }
+        });
+        document.addEventListener('mouseout', function(e) {
+            if (e.target.closest('.fc-lesson-item') &&
+                (!e.relatedTarget || !e.relatedTarget.closest('.fc-lesson-item'))) {
+                const tip = document.getElementById('fc-preview-tip');
+                if (tip) tip.style.display = 'none';
+            }
+        });
+
+        // ── Unified click handler ─────────────────────────────────────────────
         document.addEventListener('click', function(e) {
+
             // TTS button
             const ttsBtn = e.target.closest('[data-speak]');
             if (ttsBtn) {
@@ -371,7 +581,36 @@ PAGE_JS = """
                 window.speechSynthesis.speak(u);
                 return;
             }
-            // Word token click
+
+            // Sidebar lesson item → load page
+            const sidebarItem = e.target.closest('.fc-lesson-item');
+            if (sidebarItem) {
+                const pageId = sidebarItem.getAttribute('data-page-id');
+                if (pageId) {
+                    // Visual highlight
+                    document.querySelectorAll('.fc-lesson-item').forEach(function(el) {
+                        el.style.background   = '';
+                        el.style.borderColor  = 'transparent';
+                    });
+                    sidebarItem.style.background  = 'rgba(0,35,149,0.08)';
+                    sidebarItem.style.borderColor  = 'rgba(0,35,149,0.28)';
+                    // Hide tooltip
+                    const tip = document.getElementById('fc-preview-tip');
+                    if (tip) tip.style.display = 'none';
+                    // Send page_id to hidden Gradio textbox
+                    const wrapper = document.getElementById('sidebar-page-click');
+                    if (!wrapper) return;
+                    const ta = wrapper.querySelector('textarea') || wrapper.querySelector('input');
+                    if (!ta) return;
+                    const proto  = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                    if (setter) setter.call(ta, pageId);
+                    ta.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                return;
+            }
+
+            // Word token click → TTS + word card
             const tok = e.target.closest('[data-token]');
             if (!tok) return;
             const u = new SpeechSynthesisUtterance(tok.getAttribute('data-text'));
@@ -380,7 +619,7 @@ PAGE_JS = """
             window.speechSynthesis.speak(u);
             const payload = JSON.stringify({
                 text: tok.getAttribute('data-text'), gender: tok.getAttribute('data-gender'),
-                pos: tok.getAttribute('data-pos'),   lemma: tok.getAttribute('data-lemma'),
+                pos:  tok.getAttribute('data-pos'),  lemma:  tok.getAttribute('data-lemma'),
             });
             const wrapper = document.getElementById('word-click-data');
             if (!wrapper) return;
@@ -400,18 +639,19 @@ PAGE_JS = """
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
-with gr.Blocks(title="French Coach") as demo:
+with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
 
     # Shared state
-    user_id_state    = gr.State(None)
-    ann_state        = gr.State("")
-    exercise_state   = gr.State("")
-    dialogue_state   = gr.State("{}")
-    pron_target_state = gr.State("{}")
+    user_id_state       = gr.State(None)
+    ann_state           = gr.State("")
+    exercise_state      = gr.State("")
+    dialogue_state      = gr.State("{}")
+    pron_target_state   = gr.State("{}")
+    current_page_id     = gr.State(None)   # page currently loaded in the editor
 
-    # ── Header ────────────────────────���───────────────────────────────────��───
+    # ── Header ───────────────────────────────────────────────────────────────
     with gr.Row(equal_height=True):
-        with gr.Column(scale=5):
+        with gr.Column(scale=5, elem_id="app-title"):
             gr.Markdown("## 🇫🇷 French Coach")
         with gr.Column(scale=1, min_width=180):
             user_display = gr.Markdown(visible=False)
@@ -421,34 +661,56 @@ with gr.Blocks(title="French Coach") as demo:
             with gr.Column(scale=0, min_width=110):
                 gr.LogoutButton(min_width=100)
 
-    # ── Tabs ──────────────────────────────────────────────────────────────────
+    # ── Tabs ─────────────────────────────────────────────────────────────────
     with gr.Tabs():
 
         # ── Tab 1: Notebook ───────────────────────────────────────────────────
         with gr.Tab("📓 Notebook"):
             with gr.Row():
-                with gr.Column(scale=1, min_width=200):
-                    gr.Markdown("### Pages")
-                    pages_dropdown = gr.Dropdown(
-                        label="Saved pages", choices=[], interactive=True, show_label=False,
-                    )
-                    refresh_pages_btn = gr.Button("↻ Refresh list", size="sm")
 
+                # Left sidebar — smart lesson browser
+                with gr.Column(scale=1, min_width=260, elem_id="pages-sidebar"):
+                    gr.Markdown("### 📄 Lessons")
+                    pages_sidebar_html = gr.HTML(
+                        value='<div style="color:#aaa;padding:14px;font-size:0.88rem">Loading…</div>'
+                    )
+                    # Hidden bridge: JS puts a clicked page_id here → triggers Python
+                    sidebar_page_click = gr.Textbox(
+                        elem_id="sidebar-page-click", visible=False, label="sidebar-click"
+                    )
+                    refresh_sidebar_btn = gr.Button("↻ Refresh", size="sm")
+
+                # Main editing area
                 with gr.Column(scale=4):
                     text_input = gr.Textbox(
                         label="French text", value=SAMPLE_TEXT, lines=4,
                         placeholder="Paste your French class notes here…",
                     )
+
+                    # Primary actions row
                     with gr.Row():
                         annotate_btn  = gr.Button("Annotate", variant="primary")
-                        save_btn      = gr.Button("💾 Save page")
+                        save_btn      = gr.Button("💾 Save as new page")
                         colors_toggle = gr.Checkbox(label="Gender colors", value=True)
+
+                    # Page management row — only visible when a saved page is loaded
+                    with gr.Row():
+                        update_btn = gr.Button("✏️ Update page", visible=False, variant="secondary")
+                        delete_btn = gr.Button("🗑️ Delete page", visible=False)
+
+                    # Delete confirmation bar (hidden until delete clicked)
+                    with gr.Row(visible=False, elem_id="delete-confirm-row") as delete_confirm_row:
+                        gr.Markdown("⚠️ **Delete this page?** All exercises saved to it will also be removed.")
+                        confirm_delete_btn = gr.Button("Yes, delete", variant="stop", scale=0, min_width=110)
+                        cancel_delete_btn  = gr.Button("Cancel", scale=0, min_width=80)
+
                     save_status = gr.Markdown("")
                     html_out    = gr.HTML(value=_empty_card())
 
+            # Word card row
             with gr.Row():
-                with gr.Column(scale=2):
-                    gr.Markdown("### Word card")
+                with gr.Column(scale=2, elem_id="word-card-area"):
+                    gr.Markdown("### 🔤 Word card")
                     word_card  = gr.HTML(value=_empty_card())
                     click_data = gr.Textbox(elem_id="word-click-data", visible=False, label="click-data")
 
@@ -467,7 +729,6 @@ with gr.Blocks(title="French Coach") as demo:
         with gr.Tab("🏋️ Exercises"):
             with gr.Tabs():
 
-                # Text exercise
                 with gr.Tab("📝 Text"):
                     gen_ex_btn      = gr.Button("Generate exercise from current lesson", variant="primary")
                     text_ex_display = gr.HTML()
@@ -476,7 +737,6 @@ with gr.Blocks(title="French Coach") as demo:
                         check_ex_btn   = gr.Button("Check answer", scale=1)
                     text_ex_feedback = gr.HTML()
 
-                # Dialogue exercise
                 with gr.Tab("🗣 Dialogue"):
                     gen_dial_btn     = gr.Button("Start dialogue from current lesson", variant="primary")
                     dial_transcript  = gr.HTML()
@@ -485,14 +745,12 @@ with gr.Blocks(title="French Coach") as demo:
                     send_dial_btn    = gr.Button("Send reply →", variant="primary")
                     dial_feedback    = gr.HTML()
 
-                # Visual exercise
                 with gr.Tab("📷 Visual"):
                     gr.Markdown("Upload a real photo — café menu, street sign, recipe — and get French exercises from it.")
                     image_input      = gr.Image(type="pil", label="Upload photo")
                     gen_visual_btn   = gr.Button("Generate exercises from photo", variant="primary")
                     visual_display   = gr.HTML()
 
-                # Pronunciation
                 with gr.Tab("🎙 Pronunciation"):
                     get_pron_btn     = gr.Button("Get a phrase to practise", variant="primary")
                     pron_target_html = gr.HTML()
@@ -512,15 +770,15 @@ with gr.Blocks(title="French Coach") as demo:
             summary_display     = gr.Markdown("")
             points_display      = gr.Markdown("")
 
-    # ── Event wiring ────────────────────────────��────────────────────────────
+    # ── Event wiring ─────────────────────────────────────────────────────────
 
     # Page load
     demo.load(
         fn=on_load,
-        outputs=[user_id_state, user_display, html_out, ann_state, pages_dropdown],
+        outputs=[user_id_state, user_display, html_out, ann_state, pages_sidebar_html],
     )
 
-    # Notebook
+    # Notebook — annotate + toggle
     annotate_btn.click(
         fn=process_text,
         inputs=[text_input, colors_toggle, user_id_state],
@@ -536,20 +794,48 @@ with gr.Blocks(title="French Coach") as demo:
         inputs=[click_data, ann_state, user_id_state],
         outputs=[word_card, ann_state],
     )
+
+    # Notebook — save as new page
     save_btn.click(
         fn=save_page_handler,
         inputs=[text_input, ann_state, user_id_state],
-        outputs=[save_status, pages_dropdown],
+        outputs=[save_status, pages_sidebar_html, current_page_id, update_btn, delete_btn, delete_confirm_row],
     )
-    refresh_pages_btn.click(
+
+    # Notebook — update existing page
+    update_btn.click(
+        fn=update_page_handler,
+        inputs=[text_input, ann_state, current_page_id, user_id_state],
+        outputs=[save_status, pages_sidebar_html],
+    )
+
+    # Notebook — delete flow (two-step)
+    delete_btn.click(
+        fn=lambda: (gr.update(visible=True), gr.update(visible=False)),
+        outputs=[delete_confirm_row, delete_btn],
+    )
+    cancel_delete_btn.click(
+        fn=lambda: (gr.update(visible=False), gr.update(visible=True)),
+        outputs=[delete_confirm_row, delete_btn],
+    )
+    confirm_delete_btn.click(
+        fn=delete_page_handler,
+        inputs=[current_page_id, user_id_state],
+        outputs=[save_status, pages_sidebar_html, text_input, html_out, ann_state,
+                 current_page_id, update_btn, delete_btn, delete_confirm_row],
+    )
+
+    # Notebook — sidebar refresh button
+    refresh_sidebar_btn.click(
         fn=load_pages_list,
         inputs=[user_id_state],
-        outputs=[pages_dropdown],
+        outputs=[pages_sidebar_html],
     )
-    pages_dropdown.change(
+    # Sidebar lesson click (JS puts page_id into this hidden textbox)
+    sidebar_page_click.change(
         fn=load_page_handler,
-        inputs=[pages_dropdown, colors_toggle, user_id_state],
-        outputs=[text_input, html_out, ann_state],
+        inputs=[sidebar_page_click, colors_toggle, user_id_state],
+        outputs=[text_input, html_out, ann_state, current_page_id, update_btn, delete_btn, delete_confirm_row],
     )
 
     # Chat
