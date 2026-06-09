@@ -17,39 +17,53 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 BACKEND  = os.environ.get("LLM_BACKEND", "huggingface_inference")
-HF_MODEL = os.environ.get("HUGGINGFACE_MODEL", "openbmb/MiniCPM4.1-8B-Instruct")
-HF_TOKEN = os.environ.get("HF_TOKEN")
+# openbmb/MiniCPM4.1-8B-Instruct is the hackathon-prize target for ZeroGPU deploy.
+# On the free HF Inference serverless tier it returns "Bad request" — confirmed.
+# Qwen/Qwen2.5-7B-Instruct is the reliable fallback for local dev + InferenceClient.
+HF_MODEL         = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+HF_FALLBACK_MODEL = os.environ.get("HF_FALLBACK_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+HF_TOKEN         = os.environ.get("HF_TOKEN")
 
 # ── Backend 1: HF InferenceClient (local dev) ─────────────────────────────────
 
-_hf_client = None
+_hf_clients: dict[str, object] = {}
 
-def _hf():
-    global _hf_client
-    if _hf_client is None:
-        from huggingface_hub import InferenceClient   # huggingface_hub>=0.21
-        _hf_client = InferenceClient(model=HF_MODEL, token=HF_TOKEN)
-    return _hf_client
+def _hf(model: str):
+    if model not in _hf_clients:
+        from huggingface_hub import InferenceClient
+        _hf_clients[model] = InferenceClient(model=model, token=HF_TOKEN)
+    return _hf_clients[model]
+
+
+def _hf_call(model: str, messages: list[dict], stream: bool, max_tokens: int):
+    """Single attempt against one model. Raises on any error."""
+    resp = _hf(model).chat_completion(
+        messages=messages, max_tokens=max_tokens,
+        stream=stream, temperature=0.7,
+    )
+    if stream:
+        def _gen():
+            for chunk in resp:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+        return _gen()
+    return resp.choices[0].message.content or ""
 
 
 def _hf_chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
-    try:
-        resp = _hf().chat_completion(
-            messages=messages, max_tokens=max_tokens,
-            stream=stream, temperature=0.7,
-        )
-        if stream:
-            def _gen():
-                for chunk in resp:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield delta
-            return _gen()
-        return resp.choices[0].message.content or ""
-    except Exception as e:
-        logger.error("HF InferenceClient error: %s", e)
-        msg = f"⚠ HF Inference unavailable ({e})"
-        return (x for x in [msg]) if stream else msg
+    """Try HF_MODEL; if it fails, try HF_FALLBACK_MODEL; then return mock."""
+    models = list(dict.fromkeys([HF_MODEL, HF_FALLBACK_MODEL]))  # deduplicate, keep order
+    last_err = None
+    for model in models:
+        try:
+            return _hf_call(model, messages, stream, max_tokens)
+        except Exception as e:
+            logger.warning("HF model %s failed: %s", model, e)
+            last_err = e
+    logger.error("All HF models failed. Last error: %s", last_err)
+    msg = "⚠ LLM unavailable — please try again in a moment."
+    return (x for x in [msg]) if stream else msg
 
 
 # ── Backend 2: ZeroGPU (HF Space deploy only) ────────────────────────────────
