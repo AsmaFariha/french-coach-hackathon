@@ -26,6 +26,12 @@ CUSTOM_CSS = """
 /* Warm paper background */
 .gradio-container { background: #FDFAF3 !important; max-width: 1280px !important; margin: 0 auto !important; }
 
+/* Hidden JS-bridge textbox — must stay in the DOM so JS can find it */
+#word-click-data    { display: none !important; }
+
+/* Lesson items must be pointer-interactive regardless of Gradio prose styles */
+.fc-lesson-item { cursor: pointer !important; }
+
 /* App title */
 #app-title h2 {
     color: #002395;
@@ -211,10 +217,10 @@ def _render_sidebar_html(user_id: str) -> str:
     import nlp as _nlp
 
     def _lesson_item(p: dict, extra_style: str = "") -> str:
-        pid   = p["id"]
-        title = (p.get("title") or "Untitled")
-        date  = p.get("date", "")
-        prev  = _safe_attr(p.get("preview", ""))
+        pid    = p["id"]
+        title  = (p.get("title") or "Untitled")
+        date   = p.get("date", "")
+        prev   = _safe_attr(p.get("preview", ""))
         t_safe = _safe_attr(title)
         short  = title[:42] + ("…" if len(title) > 42 else "")
         return (
@@ -222,8 +228,8 @@ def _render_sidebar_html(user_id: str) -> str:
             f'data-title="{t_safe}" data-date="{date}" data-preview="{prev}" '
             f'style="padding:7px 10px;margin:2px 0;border-radius:6px;cursor:pointer;'
             f'border:1px solid transparent;transition:background 0.12s,border-color 0.12s;{extra_style}">'
-            f'<div style="font-weight:600;font-size:0.84rem;color:#111;line-height:1.35">{short}</div>'
-            f'<div style="font-size:0.74rem;color:#888;margin-top:2px">{date}</div>'
+            f'<div style="font-weight:600;font-size:0.84rem;color:#111;line-height:1.35;pointer-events:none">{short}</div>'
+            f'<div style="font-size:0.74rem;color:#888;margin-top:2px;pointer-events:none">{date}</div>'
             f'</div>'
         )
 
@@ -249,7 +255,6 @@ def _render_sidebar_html(user_id: str) -> str:
         # Search box
         f'<div style="margin-bottom:8px">'
         f'<input id="fc-search" type="text" placeholder="🔍 Search lessons…" '
-        f'oninput="window.fcSidebarSearch(this.value)" '
         f'style="width:100%;box-sizing:border-box;padding:7px 10px;'
         f'border:1px solid #ddd;border-radius:6px;font-size:0.86rem;'
         f'background:#fff;outline:none;color:#111" />'
@@ -522,56 +527,82 @@ def on_load(profile: gr.OAuthProfile | None):
     html, ann = process_text(SAMPLE_TEXT, True, user_id)
     return user_id, gr.Markdown(label, visible=True), html, ann, _render_sidebar_html(user_id)
 
+# ── Sidebar click handler (gr.HTML.click + js_on_load trigger) ───────────────
+
+def sidebar_click_handler(colors_on: bool, user_id: str, evt: gr.EventData):
+    """Called by pages_sidebar_html.click(); evt.page_id comes from trigger()."""
+    try:
+        page_id = evt.page_id
+    except (AttributeError, KeyError, TypeError):
+        page_id = None
+    return load_page_handler(page_id, colors_on, user_id)
+
+
+# js_on_load runs inside the gr.HTML Svelte component context.
+# `element` = the component root DOM node; `trigger` = Gradio event dispatcher.
+# Event delegation on `element` survives value re-renders because the listeners
+# live on the container, not on individual lesson items.
+SIDEBAR_JS_ON_LOAD = """
+element.addEventListener('click', function(e) {
+    var item = e.target.closest('.fc-lesson-item');
+    if (!item) return;
+    e.stopPropagation();
+    element.querySelectorAll('.fc-lesson-item').forEach(function(el) {
+        el.style.background = '';
+        el.style.borderColor = 'transparent';
+    });
+    item.style.background  = 'rgba(0,35,149,0.08)';
+    item.style.borderColor = 'rgba(0,35,149,0.28)';
+    var tip = element.querySelector('#fc-preview-tip');
+    if (tip) tip.style.display = 'none';
+    trigger('click', {page_id: item.getAttribute('data-page-id')});
+});
+element.addEventListener('input', function(e) {
+    if (!e.target || e.target.id !== 'fc-search') return;
+    var q = (e.target.value || '').toLowerCase().trim();
+    element.querySelectorAll('.fc-lesson-item').forEach(function(el) {
+        var title = (el.getAttribute('data-title') || '').toLowerCase();
+        el.style.display = (!q || title.includes(q)) ? '' : 'none';
+    });
+});
+element.addEventListener('mouseover', function(e) {
+    var item = e.target.closest('.fc-lesson-item');
+    var tip  = element.querySelector('#fc-preview-tip');
+    if (!tip) return;
+    if (item) {
+        var prev = item.getAttribute('data-preview') || '';
+        if (prev) { tip.textContent = prev; tip.style.display = 'block'; }
+    } else if (!e.target.closest('#fc-preview-tip')) {
+        tip.style.display = 'none';
+    }
+});
+element.addEventListener('mousemove', function(e) {
+    var tip = element.querySelector('#fc-preview-tip');
+    if (tip && tip.style.display !== 'none') {
+        tip.style.left = Math.min(e.clientX + 16, window.innerWidth - 296) + 'px';
+        tip.style.top  = (e.clientY - 8) + 'px';
+    }
+});
+element.addEventListener('mouseout', function(e) {
+    if (!e.target.closest) return;
+    if (e.target.closest('.fc-lesson-item') &&
+            !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.fc-lesson-item'))) {
+        var tip = element.querySelector('#fc-preview-tip');
+        if (tip) tip.style.display = 'none';
+    }
+});
+"""
+
 # ── Page-load JS ──────────────────────────────────────────────────────────────
 
 PAGE_JS = """
 () => {
     function setup() {
-
-        // ── Sidebar: search filter ────────────────────────────────────────────
-        window.fcSidebarSearch = function(q) {
-            q = (q || '').toLowerCase().trim();
-            document.querySelectorAll('.fc-lesson-item').forEach(function(el) {
-                const title = (el.getAttribute('data-title') || '').toLowerCase();
-                el.style.display = (!q || title.includes(q)) ? '' : 'none';
-            });
-        };
-
-        // ── Sidebar: hover preview tooltip ────────────────────────────────────
-        document.addEventListener('mouseover', function(e) {
-            const item = e.target.closest('.fc-lesson-item');
-            const tip  = document.getElementById('fc-preview-tip');
-            if (!tip) return;
-            if (item) {
-                const preview = item.getAttribute('data-preview') || '';
-                if (preview) {
-                    tip.textContent = preview;
-                    tip.style.display = 'block';
-                }
-            } else if (!e.target.closest('#fc-preview-tip')) {
-                tip.style.display = 'none';
-            }
-        });
-        document.addEventListener('mousemove', function(e) {
-            const tip = document.getElementById('fc-preview-tip');
-            if (tip && tip.style.display !== 'none') {
-                const x = Math.min(e.clientX + 16, window.innerWidth - 296);
-                tip.style.left = x + 'px';
-                tip.style.top  = (e.clientY - 8) + 'px';
-            }
-        });
-        document.addEventListener('mouseout', function(e) {
-            if (e.target.closest('.fc-lesson-item') &&
-                (!e.relatedTarget || !e.relatedTarget.closest('.fc-lesson-item'))) {
-                const tip = document.getElementById('fc-preview-tip');
-                if (tip) tip.style.display = 'none';
-            }
-        });
-
-        // ── Unified click handler ─────────────────────────────────────────────
+        // ── Document click: TTS buttons + word tokens ─────────────────────────
+        // Sidebar lesson clicks are handled inside SIDEBAR_JS_ON_LOAD via trigger().
         document.addEventListener('click', function(e) {
 
-            // TTS button
+            // TTS speak button
             const ttsBtn = e.target.closest('[data-speak]');
             if (ttsBtn) {
                 e.stopPropagation();
@@ -579,34 +610,6 @@ PAGE_JS = """
                 u.lang = 'fr-FR';
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(u);
-                return;
-            }
-
-            // Sidebar lesson item → load page
-            const sidebarItem = e.target.closest('.fc-lesson-item');
-            if (sidebarItem) {
-                const pageId = sidebarItem.getAttribute('data-page-id');
-                if (pageId) {
-                    // Visual highlight
-                    document.querySelectorAll('.fc-lesson-item').forEach(function(el) {
-                        el.style.background   = '';
-                        el.style.borderColor  = 'transparent';
-                    });
-                    sidebarItem.style.background  = 'rgba(0,35,149,0.08)';
-                    sidebarItem.style.borderColor  = 'rgba(0,35,149,0.28)';
-                    // Hide tooltip
-                    const tip = document.getElementById('fc-preview-tip');
-                    if (tip) tip.style.display = 'none';
-                    // Send page_id to hidden Gradio textbox
-                    const wrapper = document.getElementById('sidebar-page-click');
-                    if (!wrapper) return;
-                    const ta = wrapper.querySelector('textarea') || wrapper.querySelector('input');
-                    if (!ta) return;
-                    const proto  = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-                    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-                    if (setter) setter.call(ta, pageId);
-                    ta.dispatchEvent(new Event('input', { bubbles: true }));
-                }
                 return;
             }
 
@@ -628,7 +631,7 @@ PAGE_JS = """
             const proto  = ta.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
             const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
             if (setter) setter.call(ta, payload);
-            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
         });
     }
     document.readyState === 'loading'
@@ -672,11 +675,8 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                 with gr.Column(scale=1, min_width=260, elem_id="pages-sidebar"):
                     gr.Markdown("### 📄 Lessons")
                     pages_sidebar_html = gr.HTML(
-                        value='<div style="color:#aaa;padding:14px;font-size:0.88rem">Loading…</div>'
-                    )
-                    # Hidden bridge: JS puts a clicked page_id here → triggers Python
-                    sidebar_page_click = gr.Textbox(
-                        elem_id="sidebar-page-click", visible=False, label="sidebar-click"
+                        value='<div style="color:#aaa;padding:14px;font-size:0.88rem">Loading…</div>',
+                        js_on_load=SIDEBAR_JS_ON_LOAD,
                     )
                     refresh_sidebar_btn = gr.Button("↻ Refresh", size="sm")
 
@@ -712,7 +712,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                 with gr.Column(scale=2, elem_id="word-card-area"):
                     gr.Markdown("### 🔤 Word card")
                     word_card  = gr.HTML(value=_empty_card())
-                    click_data = gr.Textbox(elem_id="word-click-data", visible=False, label="click-data")
+                    click_data = gr.Textbox(elem_id="word-click-data", visible=True, label="click-data")
 
         # ── Tab 2: Chat Coach ─────────────────────────────────────────────────
         with gr.Tab("💬 Chat Coach"):
@@ -789,7 +789,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
         inputs=[ann_state, colors_toggle, user_id_state],
         outputs=[html_out],
     )
-    click_data.change(
+    click_data.input(
         fn=show_word_card,
         inputs=[click_data, ann_state, user_id_state],
         outputs=[word_card, ann_state],
@@ -831,10 +831,10 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
         inputs=[user_id_state],
         outputs=[pages_sidebar_html],
     )
-    # Sidebar lesson click (JS puts page_id into this hidden textbox)
-    sidebar_page_click.change(
-        fn=load_page_handler,
-        inputs=[sidebar_page_click, colors_toggle, user_id_state],
+    # Sidebar lesson click — js_on_load calls trigger('click', {page_id}); Python reads evt.page_id
+    pages_sidebar_html.click(
+        fn=sidebar_click_handler,
+        inputs=[colors_toggle, user_id_state],
         outputs=[text_input, html_out, ann_state, current_page_id, update_btn, delete_btn, delete_confirm_row],
     )
 
