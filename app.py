@@ -32,6 +32,12 @@ CUSTOM_CSS = """
 /* Lesson items must be pointer-interactive regardless of Gradio prose styles */
 .fc-lesson-item { cursor: pointer !important; }
 
+/* Thin scrollbars for the scrollable lesson lists in the sidebar */
+#fc-date-list::-webkit-scrollbar, #fc-topic-list::-webkit-scrollbar { width: 6px; }
+#fc-date-list::-webkit-scrollbar-thumb, #fc-topic-list::-webkit-scrollbar-thumb {
+    background: #ccc; border-radius: 3px;
+}
+
 /* App title */
 #app-title h2 {
     color: #002395;
@@ -233,22 +239,32 @@ def _render_sidebar_html(user_id: str) -> str:
             f'</div>'
         )
 
-    # ── By Date ──────────────────────────────────────────────────────────────
-    date_items = "".join(_lesson_item(p) for p in pages)
+    def _group_header(label: str, count: int, open_attr: str, items: str) -> str:
+        return (
+            f'<details {open_attr} style="margin-bottom:2px">'
+            f'<summary style="cursor:pointer;padding:4px 8px;font-size:0.74rem;'
+            f'font-weight:700;text-transform:uppercase;letter-spacing:0.06em;'
+            f'color:#888;user-select:none;list-style:none;'
+            f'display:flex;align-items:center;gap:5px">'
+            f'{label}&thinsp;<span style="font-weight:400">({count})</span>'
+            f'</summary>'
+            f'{items}'
+            f'</details>'
+        )
+
+    # ── By Date — grouped into collapsible per-date sections ──────────────────
+    date_groups = _nlp.group_by_date(pages)
+    date_html = ""
+    for i, (d, d_pages) in enumerate(date_groups.items()):
+        items = "".join(_lesson_item(p) for p in d_pages)
+        date_html += _group_header(_nlp.format_date_header(d), len(d_pages), "open" if i == 0 else "", items)
 
     # ── By Topic ─────────────────────────────────────────────────────────────
     grouped = _nlp.get_lesson_categories(pages)
     topic_html = ""
     for cat, cat_pages in grouped.items():
         items = "".join(_lesson_item(p) for p in cat_pages)
-        topic_html += (
-            f'<div style="margin-bottom:6px">'
-            f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:0.06em;color:#888;padding:6px 8px 2px">'
-            f'{cat}&thinsp;<span style="font-weight:400">({len(cat_pages)})</span></div>'
-            f'{items}'
-            f'</div>'
-        )
+        topic_html += _group_header(cat, len(cat_pages), "", items)
 
     return (
         f'<div id="fc-sidebar-panel" style="font-family:system-ui,sans-serif">'
@@ -266,7 +282,8 @@ def _render_sidebar_html(user_id: str) -> str:
         f'display:flex;align-items:center;gap:5px">'
         f'📅 By Date <span style="font-weight:400;font-size:0.75rem;color:#888">({len(pages)})</span>'
         f'</summary>'
-        f'<div id="fc-date-list" style="margin-top:3px">{date_items}</div>'
+        f'<div id="fc-date-list" style="margin-top:3px;max-height:340px;'
+        f'overflow-y:auto;padding-right:4px">{date_html}</div>'
         f'</details>'
         # By Topic section (collapsed by default)
         f'<details>'
@@ -275,7 +292,8 @@ def _render_sidebar_html(user_id: str) -> str:
         f'display:flex;align-items:center;gap:5px">'
         f'🏷️ By Topic'
         f'</summary>'
-        f'<div id="fc-topic-list" style="margin-top:3px">{topic_html}</div>'
+        f'<div id="fc-topic-list" style="margin-top:3px;max-height:340px;'
+        f'overflow-y:auto;padding-right:4px">{topic_html}</div>'
         f'</details>'
         # Hover preview tooltip (positioned by JS)
         f'<div id="fc-preview-tip" style="display:none;position:fixed;z-index:9999;'

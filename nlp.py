@@ -1,3 +1,4 @@
+import datetime
 import spacy
 
 _nlp = None
@@ -208,3 +209,25 @@ def get_lesson_categories(pages: list[dict]) -> dict[str, list[dict]]:
         cat = page.get("category") or "General"
         groups.setdefault(cat, []).append(page)
     return dict(sorted(groups.items()))
+
+
+def group_by_date(pages: list[dict]) -> dict[str, list[dict]]:
+    """Group a list of page dicts by their date (most recent first).
+
+    Each page dict must have at least {id, title, date}. Pages are assumed
+    to already be ordered newest-first within each date group.
+    """
+    groups: dict[str, list[dict]] = {}
+    for page in pages:
+        d = page.get("date") or "Undated"
+        groups.setdefault(d, []).append(page)
+    return dict(sorted(groups.items(), key=lambda kv: kv[0], reverse=True))
+
+
+def format_date_header(date_str: str) -> str:
+    """Render an ISO date string ('2026-06-09') as a friendly header ('Mon, Jun 9, 2026')."""
+    try:
+        d = datetime.date.fromisoformat(date_str)
+        return d.strftime("%a, %b %-d, %Y")
+    except (ValueError, TypeError):
+        return date_str or "Undated"
