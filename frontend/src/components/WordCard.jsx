@@ -9,7 +9,7 @@ const GENDER_COLORS = { Masc: '#4A90D9', Fem: '#D96B8A' }
 
 export default function WordCard({ data, loading }) {
   if (!data) {
-    return <div className="fc-muted">Click any word to see its gender, lemma, and part of speech.</div>
+    return <div className="fc-muted">👆 Click any word to see its gender, lemma, and part of speech.</div>
   }
   const color = GENDER_COLORS[data.gender] || '#888'
   const genderLabel = GENDER_LABELS[data.gender] || '—'

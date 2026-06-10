@@ -74,11 +74,11 @@ function Resources() {
   }, [])
 
   if (error) return <div className="fc-card fc-error">Could not load resources: {error}</div>
-  if (resources === null) return <div className="fc-card fc-muted">Loading resources…</div>
+  if (resources === null) return <div className="fc-empty"><span className="fc-spinner" />Loading resources…</div>
   if (resources.length === 0) {
     return (
-      <div className="fc-card fc-muted">
-        No resources yet. Save a page that's mostly links or book recommendations
+      <div className="fc-empty">
+        📚 No resources yet. Save a page that's mostly links or book recommendations
         (e.g. "Online Resources", "Books to Read") and it'll show up here, beautifully
         laid out and out of your lecture notes.
       </div>
@@ -149,7 +149,7 @@ export default function Lessons({ onOpenLesson }) {
   }, [lessons, query])
 
   if (error) return <div className="fc-card fc-error">Could not load lessons: {error}</div>
-  if (lessons === null) return <div className="fc-card fc-muted">Loading lessons…</div>
+  if (lessons === null) return <div className="fc-empty"><span className="fc-spinner" />Loading lessons…</div>
 
   return (
     <div>
@@ -177,13 +177,13 @@ export default function Lessons({ onOpenLesson }) {
       {view === 'resources' && <Resources />}
 
       {view !== 'resources' && lessons.length === 0 && (
-        <div className="fc-card fc-muted">
-          No lessons saved yet. Open the Notebook tab, paste some French text, and save it.
+        <div className="fc-empty">
+          📓 No lessons saved yet. Open the Notebook tab, paste some French text, and save it.
         </div>
       )}
 
       {view !== 'resources' && lessons.length > 0 && filtered.length === 0 && (
-        <div className="fc-card fc-muted">No lessons match "{query}".</div>
+        <div className="fc-empty">No lessons match "{query}".</div>
       )}
 
       {view === 'date' && filtered.length > 0 && (

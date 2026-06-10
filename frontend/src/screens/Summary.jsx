@@ -25,7 +25,7 @@ export default function Summary() {
   }, [])
 
   if (error) return <div className="fc-card fc-error">Could not load your summary: {error}</div>
-  if (data === null) return <div className="fc-card fc-muted">Gathering your progress…</div>
+  if (data === null) return <div className="fc-empty"><span className="fc-spinner" />Gathering your progress…</div>
 
   return (
     <div className="fc-summary">
