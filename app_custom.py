@@ -1,5 +1,6 @@
 """
-Custom-UI entrypoint (UI_UPGRADE_PLAN.md Phase 2+).
+Custom-UI entrypoint (UI_UPGRADE_PLAN.md Phase 2+). Phase 5: this is the
+Gradio Space entrypoint (see root README.md front matter `app_file`).
 
 Serves the React frontend (built to `frontend/dist/`) as static assets and
 exposes the backend (db, nlp, llm, exercises, gamify) as a small JSON API
@@ -7,12 +8,18 @@ under `/api/...` — all attached to the same Gradio app object (`gr.Server`)
 returned by `demo.launch(prevent_thread_lock=True)`, so the process stays a
 Gradio-SDK app (see UI_UPGRADE_PLAN.md CONSTRAINT section).
 
-- The Gradio Blocks tab at `/` is a tiny "what is this" page (kept so a
-  Gradio app object exists to attach routes to).
-- The React build is served at `/custom` (StaticFiles, html=True).
+- `/` serves the React build's index.html directly. Gradio's default Blocks
+  "/" route (registered by demo.launch() below) is dropped at startup to make
+  room for it; the Blocks object below exists only to give us a gr.Server app
+  to attach routes to.
+- The React build is ALSO served at `/custom` (StaticFiles, html=True), per
+  frontend/README.md's dev workflow.
 - `/api/...` routes implement frontend/API_CONTRACT.md.
 
-Does NOT modify app.py. Runs on port 7861, separate from app.py (port 7860).
+Does NOT modify app.py, which remains the themed-Blocks fallback entrypoint
+(see root README.md "Reverting" note). Defaults to the standard Gradio port
+(7860); local Docker Compose overrides CUSTOM_UI_PORT=7861 so it can run
+alongside app.py on 7860.
 """
 import io
 import json
@@ -87,18 +94,19 @@ def _domain(url: str) -> str:
 # (gr.Server) to attach the custom routes onto, so the entrypoint stays Gradio.
 with gr.Blocks(title="French Coach — Custom UI (dev)") as demo:
     gr.Markdown(
-        "## French Coach — custom UI dev server\n\n"
-        "The React frontend lives at **/custom** — this Blocks tab only "
-        "exists so a Gradio app object (`gr.Server`) is available to mount "
-        "it and the `/api/...` routes on."
+        "## French Coach — custom UI\n\n"
+        "This Blocks tab exists only so a Gradio app object (`gr.Server`) is "
+        "available to mount the React build and the `/api/...` routes on. "
+        "Since Phase 5, the React build is served at `/` (the Space "
+        "entrypoint) — this tab itself isn't reachable."
     )
-    gr.HTML('<a href="/custom/" target="_blank">Open the custom UI →</a>')
+    gr.HTML('<a href="/custom/" target="_blank">Open the custom UI (dev URL) →</a>')
 
 
 if __name__ == "__main__":
     app, local_url, share_url = demo.launch(
         server_name="0.0.0.0",
-        server_port=int(os.environ.get("CUSTOM_UI_PORT", 7861)),
+        server_port=int(os.environ.get("CUSTOM_UI_PORT", 7860)),
         prevent_thread_lock=True,
     )
 
@@ -334,9 +342,25 @@ if __name__ == "__main__":
         total = gamify.get_total_points(USER_ID)
         return {"summary": summary, "total_points": total}
 
-    # ── React build (served last so /api/* above takes precedence) ──────────
+    # ── React build, served at / (Space root, Phase 5) and /custom ──────────
+    # `/` is the Space entrypoint: drop Gradio's default Blocks "/" route(s)
+    # (registered by demo.launch() above) and serve the built index.html in
+    # their place. That file's asset URLs are rooted at /custom/ (see
+    # vite.config.js `base`), which the StaticFiles mount below continues to
+    # serve, so no assets need duplicating. /custom/ is kept too, for the dev
+    # workflow described in frontend/README.md.
 
     if os.path.isdir(FRONTEND_DIST):
+        with open(os.path.join(FRONTEND_DIST, "index.html"), encoding="utf-8") as f:
+            _index_html = f.read()
+
+        app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/"]
+
+        @app.get("/", response_class=HTMLResponse)
+        @app.head("/", response_class=HTMLResponse)
+        def custom_ui_root():
+            return _index_html
+
         app.mount("/custom", StaticFiles(directory=FRONTEND_DIST, html=True), name="custom-ui")
     else:
         @app.get("/custom", response_class=HTMLResponse)
