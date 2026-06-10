@@ -1,0 +1,41 @@
+:root {
+  --fc-blue: #002395;
+  --fc-blue-dark: #001a6e;
+  --fc-blue-light: #1f4fd6;
+  --fc-red: #ed2939;
+  --fc-paper: #fdfaf3;
+  --fc-ink: #15182b;
+  --fc-muted: #888;
+  --fc-border: #ececec;
+  --fc-card-shadow: 0 1px 4px rgba(0, 35, 149, 0.06);
+
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  color: var(--fc-ink);
+  background: var(--fc-paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fc-paper);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+}
+
+textarea,
+input {
+  font-family: inherit;
+}
