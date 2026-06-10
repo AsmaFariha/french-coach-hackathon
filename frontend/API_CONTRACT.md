@@ -105,6 +105,14 @@ attributes) — the React Notebook/Tools screens render it with
 `dangerouslySetInnerHTML` and use click-event delegation, exactly like the
 existing Blocks `PAGE_JS`, so gender colors + click behavior stay identical.
 
+### `POST /api/render`
+Re-render cached annotations to gender-colored HTML without re-running
+spaCy/LLM (used when loading a saved lesson, or toggling the gender-colors
+checkbox, so cached `meanings` survive).
+
+Body: `{"annotations": {"tokens": [...], "meanings": {...}}, "colors_on": true}`
+Response: `{"html": "<span data-token=...>...</span> ..."}`
+
 ### `POST /api/word-card`
 Get (and cache) the LLM meaning/grammar note for one clicked word. Awards
 `word_explored` points the first time a given lemma is looked up.

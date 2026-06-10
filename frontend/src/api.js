@@ -43,6 +43,7 @@ export const listResources = () => get('/resources')
 
 // Annotation / word card
 export const annotate = (text, colorsOn) => post('/annotate', { text, colors_on: colorsOn })
+export const renderAnnotations = (annotations, colorsOn) => post('/render', { annotations, colors_on: colorsOn })
 export const wordCard = (token, meanings) => post('/word-card', { ...token, meanings })
 
 // Chat

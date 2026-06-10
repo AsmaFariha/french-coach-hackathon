@@ -188,6 +188,15 @@ if __name__ == "__main__":
         html = nlp.render_html(ann, colors_on)
         return {"html": html, "tokens": ann.get("tokens", []), "meanings": ann.get("meanings", {})}
 
+    @app.post("/api/render")
+    async def api_render(payload: dict):
+        """Re-render cached annotations (no spaCy/LLM calls) — used when loading
+        a saved lesson or toggling gender colors, so cached word-card meanings
+        in `annotations.meanings` survive."""
+        ann = payload.get("annotations") or {"tokens": [], "meanings": {}}
+        colors_on = bool(payload.get("colors_on", True))
+        return {"html": nlp.render_html(ann, colors_on)}
+
     @app.post("/api/word-card")
     async def api_word_card(payload: dict):
         text = payload.get("text", "")
