@@ -1,15 +1,22 @@
 import json
 from datetime import date
 from db import get_cursor
-import llm
+import curator
 
 
 def save_page(user_id: str, raw_text: str, annotations: dict) -> tuple[str, str]:
-    """LLM-titles the page, inserts into DB. Returns (page_id, title)."""
+    """Curates the page (title/summary/type/resources), inserts into DB. Returns (page_id, title)."""
     import nlp as _nlp
-    title = llm.generate_page_title(raw_text)
+    curated = curator.curate_page(raw_text)
     category = _nlp.detect_category(raw_text[:300])
-    metadata = {"category": category}
+    title = curated["title"]
+    metadata = {
+        "category": category,
+        "summary": curated["summary"],
+        "page_type": curated["page_type"],
+        "links": curated["links"],
+        "books": curated["books"],
+    }
     with get_cursor() as cur:
         cur.execute(
             """INSERT INTO pages (user_id, title, date, raw_text, annotations, metadata)
@@ -22,7 +29,7 @@ def save_page(user_id: str, raw_text: str, annotations: dict) -> tuple[str, str]
 
 
 def list_pages(user_id: str) -> list[dict]:
-    """Sidebar list — returns [{id, title, date, category, preview}] newest-first, max 50.
+    """Sidebar list — returns [{id, title, date, category, page_type, preview}] newest-first, max 50.
 
     Fetches the first 300 chars of raw_text to detect category and build a hover
     preview without pulling the full lesson text over the wire.
@@ -32,7 +39,8 @@ def list_pages(user_id: str) -> list[dict]:
         cur.execute(
             "SELECT id::text, title, date::text, "
             "LEFT(raw_text, 300) AS snippet, "
-            "COALESCE(metadata->>'category', '') AS stored_category "
+            "COALESCE(metadata->>'category', '') AS stored_category, "
+            "COALESCE(metadata->>'page_type', 'lesson') AS page_type "
             "FROM pages WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
             (user_id,),
         )
@@ -44,6 +52,31 @@ def list_pages(user_id: str) -> list[dict]:
         preview = snippet[:100]
         row["preview"] = preview + ("…" if len(snippet) > 100 else "")
     return rows
+
+
+def list_resources(user_id: str) -> list[dict]:
+    """Return resource-type pages: [{id, title, links, books}], newest-first."""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT id::text, title, "
+            "COALESCE(metadata->'links', '[]'::jsonb) AS links, "
+            "COALESCE(metadata->'books', '[]'::jsonb) AS books "
+            "FROM pages WHERE user_id = %s AND metadata->>'page_type' = 'resource' "
+            "ORDER BY created_at DESC",
+            (user_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def update_title(page_id: str, user_id: str, title: str) -> str:
+    """Persist a user-edited title (overrides the auto-generated one). Returns the saved title."""
+    title = (title or "").strip()[:80] or "Untitled Lesson"
+    with get_cursor() as cur:
+        cur.execute(
+            "UPDATE pages SET title = %s WHERE id = %s AND user_id = %s",
+            (title, page_id, user_id),
+        )
+    return title
 
 
 def get_page(page_id: str, user_id: str) -> dict | None:

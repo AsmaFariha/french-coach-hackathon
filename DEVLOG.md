@@ -147,3 +147,32 @@ The sidebar on the Notebook tab is completely new. Instead of a plain dropdown l
 - **Gotcha hit**: spaCy NER assigns `LOC` to many common French nouns (any proper noun can be detected as location). Giving unconditional +2 bonus caused 23/40 lessons to land in "Places & Directions". Fix: NER only reinforces (`+1`) categories that already have keyword matches. Result: 40 lessons spread across 11 categories.
 
 ---
+
+## Sprint Day 2 — 2026-06-09 — Curator pass, Resources tab, real lesson dates, editable titles
+
+### What changed (plain English)
+
+The notebook now tells the difference between a class lesson and a "resource" page (your book list, online resource links, listening log) — resource pages are pulled out of the lecture sidebar and shown in a brand-new **📚 Resources** tab as nice link cards (with site icons) and a book list, instead of cluttering your lessons. Every saved page now also gets a friendlier auto-generated title and a one-line summary, and you can rename any page yourself with the new title field + "✏️ Rename" button above the editor. The 20 imported "Class 1.1" … "Class A2 U2 L2" lessons now have real, spaced-out dates running from April 28 through June 5, 2026, so they sort correctly in the "By Date" view.
+
+### What changed (technical)
+
+- **`prompts.py`** — replaced the old `PAGE_TITLE_SYSTEM` (title-only) with `CURATOR_SYSTEM`: a single prompt that classifies a page as `"lesson"` or `"resource"` and returns `{title, summary, page_type, links[], books[]}` in one JSON response. Rules enforce Title Case titles, empty `links`/`books` for lessons, real URLs only, and `""` (never `"N/A"`) for unknown book authors.
+- **`curator.py`** (new) — `curate_page(raw_text)` calls `llm.chat_json(CURATOR_SYSTEM, ...)`, with a text-derived fallback (`_fallback`) if the LLM is unavailable. Sanitizes/truncates all fields (title ≤80, link label ≤120, book title ≤200, etc.) and validates `page_type`.
+- **`notebook.py`**:
+  - `save_page()` now calls `curator.curate_page()` instead of the old `llm.generate_page_title()`; stores `summary`, `page_type`, `links`, `books` in `metadata` alongside `category`.
+  - `list_pages()` also returns `page_type` (defaults to `"lesson"` for old rows).
+  - New `list_resources(user_id)` — returns resource-type pages with their `links`/`books` for the Resources tab.
+  - New `update_title(page_id, user_id, title)` — lets the user override the auto-generated title.
+- **`llm.py`** — removed the now-unused `generate_page_title()`.
+- **`app.py`**:
+  - New `_safe_html()` (escapes `&<>` for text content, vs. `_safe_attr()` for attributes) and `_domain(url)` helpers.
+  - `_render_sidebar_html()` filters out `page_type == "resource"` pages — they no longer appear in the lecture browser.
+  - New `_render_resources_html(user_id)` renders a `.fc-resources` block: one `.fc-resource-section` per resource page, each with a `.fc-link-grid` of `.fc-link-card`s (Google favicon + label + domain, opens in a new tab) and/or a `.fc-book-list` of `.fc-book-row`s (📖 title + author · note). New CSS added for all of these.
+  - New **📚 Resources** tab (between Notebook and Chat Coach) with a refresh button wired to `_render_resources_html`.
+  - Notebook tab: new `title_input` textbox + `rename_btn` (hidden until a page is loaded/saved) above the editor, wired via new `rename_page_handler`. `save_page_handler`, `load_page_handler`, `delete_page_handler`, `sidebar_click_handler` all updated to populate/clear the title field and toggle the rename button — required careful attention to keep return-tuple order in sync with each `outputs=[...]` list.
+- **`backfill_class_dates.py`** (new, one-time, run from host) — assigns the 20 "Class N M" / "Class A2..." lessons consecutive dates starting April 28, 2026, every 2 days, in their natural curriculum order (1.1→1.5, 2.1→2.7, A2 1-3, A2 U1 L4-6, A2 U2 L1-2), ending June 5, 2026.
+- **`backfill_curator.py`** (new, one-time, run inside the container) — re-runs the curator pass over all 36 existing pages so old lessons get the new friendly titles/summaries/page_type without the user re-saving anything. Result: 33 pages classified `"lesson"`, 3 classified `"resource"` ("Online Resource", "Book Recommendations", "Listening Log").
+- **Gotcha hit**: new `.py` files aren't visible inside the app container until `docker compose up -d --build` (no volume mount) — hit this for both `curator.py` and `backfill_curator.py`.
+- **Gotcha hit**: first curator pass on "Book Recommendations" produced a lowercase title and `"author": "N/A"` for a book with no listed author. Fixed by tightening `CURATOR_SYSTEM`'s title/author rules; full 36-page backfill confirms `author: ""` instead of `"N/A"`.
+
+---

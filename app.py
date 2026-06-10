@@ -38,6 +38,40 @@ CUSTOM_CSS = """
     background: #ccc; border-radius: 3px;
 }
 
+/* Resources tab — link cards + book list */
+.fc-resources { display: flex; flex-direction: column; gap: 20px; }
+.fc-resource-section {
+    background: #fff; border: 1px solid #eee; border-radius: 12px;
+    padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.fc-resource-title { margin: 0 0 12px; font-size: 1.05rem; color: #002395; font-weight: 700; }
+.fc-link-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+}
+.fc-link-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border: 1px solid #eee; border-radius: 8px; text-decoration: none !important;
+    color: inherit; background: #FDFAF3; transition: border-color .15s, box-shadow .15s;
+}
+.fc-link-card:hover { border-color: #002395; box-shadow: 0 2px 8px rgba(0,35,149,0.10); }
+.fc-link-favicon { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+.fc-link-text { display: flex; flex-direction: column; min-width: 0; }
+.fc-link-label {
+    font-weight: 600; font-size: 0.86rem; color: #111; line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fc-link-domain { font-size: 0.74rem; color: #888; margin-top: 1px; }
+.fc-book-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.fc-book-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px;
+    border-radius: 8px; background: #FDFAF3;
+}
+.fc-book-icon { font-size: 1.05rem; line-height: 1.5; }
+.fc-book-title { font-weight: 600; font-size: 0.86rem; color: #111; display: block; }
+.fc-book-meta {
+    font-size: 0.76rem; color: #888; display: block; margin-top: 1px; text-transform: capitalize;
+}
+
 /* App title */
 #app-title h2 {
     color: #002395;
@@ -202,6 +236,11 @@ def _safe_attr(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace('"', "&quot;").replace("'", "&#39;").replace("\n", " ")
 
 
+def _safe_html(s: str) -> str:
+    """Escape a string for use as HTML text content."""
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _render_sidebar_html(user_id: str) -> str:
     """Build the full collapsible lesson-browser sidebar HTML."""
     if not user_id:
@@ -213,6 +252,9 @@ def _render_sidebar_html(user_id: str) -> str:
         pages = nb.list_pages(user_id)
     except Exception as exc:
         return f'<div style="color:#c00;padding:12px;font-size:0.85rem">⚠ Could not load lessons: {exc}</div>'
+
+    # Resource-only pages (link/book lists) live in the Resources tab, not the lecture browser.
+    pages = [p for p in pages if p.get("page_type") != "resource"]
 
     if not pages:
         return (
@@ -304,6 +346,75 @@ def _render_sidebar_html(user_id: str) -> str:
     )
 
 
+def _domain(url: str) -> str:
+    import urllib.parse
+    try:
+        netloc = urllib.parse.urlparse(url).netloc
+        return netloc[4:] if netloc.startswith("www.") else netloc
+    except ValueError:
+        return url
+
+
+def _render_resources_html(user_id: str) -> str:
+    """Build a beautiful card layout for link/book resources pulled out of the notebook."""
+    if not user_id:
+        return '<div style="color:#aaa;padding:14px;font-size:0.9rem">Sign in to see your resources.</div>'
+    try:
+        pages = nb.list_resources(user_id)
+    except Exception as exc:
+        return f'<div style="color:#c00;padding:12px;font-size:0.9rem">⚠ Could not load resources: {exc}</div>'
+
+    pages = [p for p in pages if p.get("links") or p.get("books")]
+    if not pages:
+        return (
+            '<div style="color:#aaa;padding:14px;font-size:0.9rem">'
+            'No resources yet. Save a page that\'s mostly links or book recommendations '
+            '(e.g. "Online Resources", "Books to Read") and it\'ll show up here, '
+            'beautifully laid out and out of your lecture notes.</div>'
+        )
+
+    sections = ""
+    for page in pages:
+        title = _safe_html(page.get("title") or "Resources")
+
+        cards = ""
+        for link in page.get("links") or []:
+            url    = link.get("url", "")
+            label  = _safe_html(link.get("label") or url)
+            domain = _domain(url)
+            cards += (
+                f'<a class="fc-link-card" href="{_safe_attr(url)}" target="_blank" rel="noopener noreferrer">'
+                f'<img class="fc-link-favicon" alt="" '
+                f'src="https://www.google.com/s2/favicons?domain={_safe_attr(domain)}&sz=32" />'
+                f'<span class="fc-link-text">'
+                f'<span class="fc-link-label">{label}</span>'
+                f'<span class="fc-link-domain">{_safe_html(domain)}</span>'
+                f'</span></a>'
+            )
+
+        books = ""
+        for book in page.get("books") or []:
+            b_title = _safe_html(book.get("title", ""))
+            meta    = " · ".join(x for x in [book.get("author", ""), book.get("note", "")] if x)
+            books += (
+                f'<div class="fc-book-row">'
+                f'<span class="fc-book-icon">📖</span>'
+                f'<span><span class="fc-book-title">{b_title}</span>'
+                + (f'<span class="fc-book-meta">{_safe_html(meta)}</span>' if meta else "")
+                + '</span></div>'
+            )
+
+        body = ""
+        if cards:
+            body += f'<div class="fc-link-grid">{cards}</div>'
+        if books:
+            body += f'<div class="fc-book-list">{books}</div>'
+
+        sections += f'<div class="fc-resource-section"><h3 class="fc-resource-title">📚 {title}</h3>{body}</div>'
+
+    return f'<div class="fc-resources">{sections}</div>'
+
+
 def _page_btns_hidden():
     """Return gr.update calls to hide update/delete buttons and confirm row."""
     return gr.update(visible=False), gr.update(visible=False), gr.update(visible=False)
@@ -316,16 +427,16 @@ def _page_btns_visible():
 
 def save_page_handler(text: str, ann_json: str, user_id: str):
     if not user_id:
-        return "Please sign in first.", _render_sidebar_html(user_id), None, *_page_btns_hidden()
+        return "Please sign in first.", _render_sidebar_html(user_id), None, "", gr.update(visible=False), *_page_btns_hidden()
     if not text.strip():
-        return "Nothing to save — type or paste some French text first.", _render_sidebar_html(user_id), None, *_page_btns_hidden()
+        return "Nothing to save — type or paste some French text first.", _render_sidebar_html(user_id), None, "", gr.update(visible=False), *_page_btns_hidden()
     try:
         ann = json.loads(ann_json) if ann_json else {}
         page_id, title = nb.save_page(user_id, text, ann)
         gamify.add_points(user_id, "saved_lesson")
-        return f"✅ Saved as **{title}**", _render_sidebar_html(user_id), page_id, *_page_btns_visible()
+        return f"✅ Saved as **{title}**", _render_sidebar_html(user_id), page_id, title, gr.update(visible=True), *_page_btns_visible()
     except Exception as e:
-        return f"⚠ Could not save: {e}", _render_sidebar_html(user_id), None, *_page_btns_hidden()
+        return f"⚠ Could not save: {e}", _render_sidebar_html(user_id), None, "", gr.update(visible=False), *_page_btns_hidden()
 
 
 def load_pages_list(user_id: str):
@@ -334,18 +445,19 @@ def load_pages_list(user_id: str):
 
 def load_page_handler(page_id: str, colors_on: bool, user_id: str):
     if not page_id or not user_id:
-        return "", "", "", None, *_page_btns_hidden()
+        return "", "", "", None, "", gr.update(visible=False), *_page_btns_hidden()
     try:
         page = nb.get_page(page_id, user_id)
         if not page:
-            return "", "", "", None, *_page_btns_hidden()
+            return "", "", "", None, "", gr.update(visible=False), *_page_btns_hidden()
         ann = page.get("annotations") or {}
         if isinstance(ann, str):
             ann = json.loads(ann)
         html = nlp.render_html(ann, colors_on)
-        return page["raw_text"], html, json.dumps(ann, ensure_ascii=False), page_id, *_page_btns_visible()
+        return (page["raw_text"], html, json.dumps(ann, ensure_ascii=False), page_id,
+                page["title"], gr.update(visible=True), *_page_btns_visible())
     except Exception as e:
-        return "", f"⚠ Could not load page: {e}", "", None, *_page_btns_hidden()
+        return "", f"⚠ Could not load page: {e}", "", None, "", gr.update(visible=False), *_page_btns_hidden()
 
 
 def update_page_handler(text: str, ann_json: str, page_id: str, user_id: str):
@@ -361,9 +473,21 @@ def update_page_handler(text: str, ann_json: str, page_id: str, user_id: str):
         return f"⚠ Could not update: {e}", _render_sidebar_html(user_id)
 
 
+def rename_page_handler(title: str, page_id: str, user_id: str):
+    if not page_id or not user_id:
+        return "⚠ No page loaded to rename.", _render_sidebar_html(user_id)
+    if not title.strip():
+        return "⚠ Title can't be empty.", _render_sidebar_html(user_id)
+    try:
+        new_title = nb.update_title(page_id, user_id, title)
+        return f"✅ Renamed to **{new_title}**", _render_sidebar_html(user_id)
+    except Exception as e:
+        return f"⚠ Could not rename: {e}", _render_sidebar_html(user_id)
+
+
 def delete_page_handler(page_id: str, user_id: str):
     if not page_id or not user_id:
-        return "⚠ No page selected.", _render_sidebar_html(user_id), "", "", "", None, *_page_btns_hidden()
+        return "⚠ No page selected.", _render_sidebar_html(user_id), "", "", "", None, "", gr.update(visible=False), *_page_btns_hidden()
     try:
         nb.delete_page(page_id, user_id)
         return (
@@ -371,10 +495,12 @@ def delete_page_handler(page_id: str, user_id: str):
             _render_sidebar_html(user_id),
             "", "", "",
             None,
+            "", gr.update(visible=False),
             *_page_btns_hidden(),
         )
     except Exception as e:
-        return f"⚠ Could not delete: {e}", _render_sidebar_html(user_id), "", "", "", page_id, *_page_btns_visible()
+        return (f"⚠ Could not delete: {e}", _render_sidebar_html(user_id), "", "", "", page_id,
+                gr.update(), gr.update(), *_page_btns_visible())
 
 # ── Chat tab handlers ─────────────────────────────────────────────────────────
 
@@ -539,11 +665,12 @@ def on_load(profile: gr.OAuthProfile | None):
             pass
 
     if user_id is None:
-        return None, gr.Markdown(visible=False), _login_prompt(), "", _render_sidebar_html(None)
+        return None, gr.Markdown(visible=False), _login_prompt(), "", _render_sidebar_html(None), _render_resources_html(None)
 
     label   = f"👤 **{user_id}**" if user_id != "dev_user" else "🛠 *local dev*"
     html, ann = process_text(SAMPLE_TEXT, True, user_id)
-    return user_id, gr.Markdown(label, visible=True), html, ann, _render_sidebar_html(user_id)
+    return (user_id, gr.Markdown(label, visible=True), html, ann,
+            _render_sidebar_html(user_id), _render_resources_html(user_id))
 
 # ── Sidebar click handler (gr.HTML.click + js_on_load trigger) ───────────────
 
@@ -700,6 +827,15 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
 
                 # Main editing area
                 with gr.Column(scale=4):
+                    # Title — auto-generated on save, editable afterward
+                    with gr.Row():
+                        title_input = gr.Textbox(
+                            label="📝 Title", value="",
+                            placeholder="A title is generated automatically when you save…",
+                            scale=4, container=True,
+                        )
+                        rename_btn = gr.Button("✏️ Rename", visible=False, scale=1, min_width=100)
+
                     text_input = gr.Textbox(
                         label="French text", value=SAMPLE_TEXT, lines=4,
                         placeholder="Paste your French class notes here…",
@@ -732,7 +868,16 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                     word_card  = gr.HTML(value=_empty_card())
                     click_data = gr.Textbox(elem_id="word-click-data", visible=True, label="click-data")
 
-        # ── Tab 2: Chat Coach ─────────────────────────────────────────────────
+        # ── Tab 2: Resources ──────────────────────────────────────────────────
+        with gr.Tab("📚 Resources"):
+            gr.Markdown(
+                "Links and book recommendations from your notebook, kept separate "
+                "from your lesson notes."
+            )
+            refresh_resources_btn = gr.Button("↻ Refresh", size="sm")
+            resources_display = gr.HTML(value="")
+
+        # ── Tab 3: Chat Coach ─────────────────────────────────────────────────
         with gr.Tab("💬 Chat Coach"):
             chatbot   = gr.Chatbot(height=380, label="French Coach")
             with gr.Row():
@@ -743,7 +888,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                 send_btn = gr.Button("Send →", variant="primary", scale=1)
             clear_btn = gr.Button("Clear conversation", size="sm")
 
-        # ── Tab 3: Exercises ──────────────────────────────────────────────────
+        # ── Tab 4: Exercises ──────────────────────────────────────────────────
         with gr.Tab("🏋️ Exercises"):
             with gr.Tabs():
 
@@ -782,7 +927,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                     check_pron_btn   = gr.Button("Check pronunciation", variant="primary")
                     pron_feedback    = gr.HTML()
 
-        # ── Tab 4: Daily Summary ──────────────────────────────────────────────
+        # ── Tab 5: Daily Summary ──────────────────────────────────────────────
         with gr.Tab("⭐ Summary"):
             refresh_summary_btn = gr.Button("Refresh summary")
             summary_display     = gr.Markdown("")
@@ -793,7 +938,14 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
     # Page load
     demo.load(
         fn=on_load,
-        outputs=[user_id_state, user_display, html_out, ann_state, pages_sidebar_html],
+        outputs=[user_id_state, user_display, html_out, ann_state, pages_sidebar_html, resources_display],
+    )
+
+    # Resources tab
+    refresh_resources_btn.click(
+        fn=_render_resources_html,
+        inputs=[user_id_state],
+        outputs=[resources_display],
     )
 
     # Notebook — annotate + toggle
@@ -817,13 +969,21 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
     save_btn.click(
         fn=save_page_handler,
         inputs=[text_input, ann_state, user_id_state],
-        outputs=[save_status, pages_sidebar_html, current_page_id, update_btn, delete_btn, delete_confirm_row],
+        outputs=[save_status, pages_sidebar_html, current_page_id, title_input, rename_btn,
+                 update_btn, delete_btn, delete_confirm_row],
     )
 
     # Notebook — update existing page
     update_btn.click(
         fn=update_page_handler,
         inputs=[text_input, ann_state, current_page_id, user_id_state],
+        outputs=[save_status, pages_sidebar_html],
+    )
+
+    # Notebook — rename (edit auto-generated title)
+    rename_btn.click(
+        fn=rename_page_handler,
+        inputs=[title_input, current_page_id, user_id_state],
         outputs=[save_status, pages_sidebar_html],
     )
 
@@ -840,7 +1000,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
         fn=delete_page_handler,
         inputs=[current_page_id, user_id_state],
         outputs=[save_status, pages_sidebar_html, text_input, html_out, ann_state,
-                 current_page_id, update_btn, delete_btn, delete_confirm_row],
+                 current_page_id, title_input, rename_btn, update_btn, delete_btn, delete_confirm_row],
     )
 
     # Notebook — sidebar refresh button
@@ -853,7 +1013,8 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
     pages_sidebar_html.click(
         fn=sidebar_click_handler,
         inputs=[colors_toggle, user_id_state],
-        outputs=[text_input, html_out, ann_state, current_page_id, update_btn, delete_btn, delete_confirm_row],
+        outputs=[text_input, html_out, ann_state, current_page_id, title_input, rename_btn,
+                 update_btn, delete_btn, delete_confirm_row],
     )
 
     # Chat

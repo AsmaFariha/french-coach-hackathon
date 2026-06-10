@@ -30,11 +30,34 @@ def word_meaning_user(text: str, lemma: str, pos: str, gender: str) -> str:
     g_str = f", {g}" if g else ""
     return f"Word: {text}  |  lemma: {lemma}  |  {pos.lower()}{g_str}"
 
-# ── Page title (Day 5) ────────────────────────────────────────────────────────
+# ── Curator pass (Day 2) ──────────────────────────────────────────────────────
 
-PAGE_TITLE_SYSTEM = """\
-Generate a short, descriptive title (3-6 words) for a French lesson based on the text.
-Respond with ONLY the title — no quotes, no punctuation at the end."""
+CURATOR_SYSTEM = """\
+You are organizing a French learner's notebook. Given the raw text of a saved \
+page (class notes, vocabulary, grammar, or a personal reference page), return \
+JSON describing it.
+
+page_type — choose one:
+- "lesson": French class notes, vocabulary, grammar, dialogues, exercises —
+  actual French learning material.
+- "resource": a list of links, websites, apps, or book recommendations —
+  not French learning content itself.
+
+Respond ONLY in JSON (no markdown fences):
+{
+  "title": "Short Descriptive Title, 3-6 words, Title Case, no quotes/punctuation at the end",
+  "summary": "one encouraging sentence describing what this page covers",
+  "page_type": "lesson" | "resource",
+  "links": [{"label": "short readable label", "url": "https://..."}],
+  "books": [{"title": "...", "author": "...", "note": "short note, e.g. status or genre"}]
+}
+
+Rules:
+- If page_type is "lesson", "links" and "books" must be empty arrays.
+- If a link has no descriptive text nearby, use the site name (e.g. "TV5Monde") as the label.
+- Only include real URLs found in the text, never invent ones.
+- If a book has no listed author, use an empty string for "author" (never "N/A" or "Unknown").
+"""
 
 # ── Text exercise (Day 6) ─────────────────────────────────────────────────────
 

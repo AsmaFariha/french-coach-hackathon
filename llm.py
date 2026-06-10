@@ -232,13 +232,3 @@ def get_word_meaning(text: str, lemma: str, pos: str, gender: str) -> dict:
         prompts.word_meaning_user(text, lemma, pos, gender),
         fallback={"meaning": "(API offline — try again later)", "grammar": ""},
     )
-
-
-def generate_page_title(snippet: str) -> str:
-    result = chat([
-        {"role": "system", "content": prompts.PAGE_TITLE_SYSTEM},
-        {"role": "user",   "content": snippet[:300]},
-    ])
-    if isinstance(result, str) and result.startswith("⚠"):
-        return snippet.split("\n")[0][:60] or "Untitled Lesson"
-    return (result or "Untitled Lesson").strip()[:80]
