@@ -28,5 +28,19 @@ services:
       db:
         condition: service_healthy
 
+  # Phase 1 (UI_UPGRADE_PLAN.md): gr.Server custom-frontend proof, side by side
+  # with the main app. Same image, different entrypoint + port.
+  app-custom:
+    build: .
+    command: python app_custom.py
+    ports:
+      - "7861:7861"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/frenchcoach
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
