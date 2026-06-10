@@ -529,3 +529,38 @@
 .fc-chat-speak-btn:hover {
   text-decoration: underline;
 }
+
+/* ── Summary ────────────────────────────────────────────────────────────── */
+.fc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+}
+
+.fc-summary-points {
+  text-align: center;
+  background: linear-gradient(135deg, var(--fc-blue-dark) 0%, var(--fc-blue) 55%, var(--fc-blue-light) 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 35, 149, 0.18);
+}
+
+.fc-summary-points-value {
+  font-size: 2.4rem;
+  font-weight: 700;
+}
+
+.fc-summary-points-label {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.fc-summary-text p {
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+
+.fc-summary-text p:last-child {
+  margin-bottom: 0;
+}
