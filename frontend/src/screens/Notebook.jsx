@@ -9,6 +9,7 @@ import {
   deleteLesson,
   getLesson,
 } from '../api'
+import { speak } from '../tts'
 
 const SAMPLE_TEXT =
   'Le petit chat noir dort sur la grande table. ' +
@@ -21,14 +22,6 @@ const POS_LABELS = {
 }
 const GENDER_LABELS = { Masc: 'Masculine ♂', Fem: 'Feminine ♀' }
 const GENDER_COLORS = { Masc: '#4A90D9', Fem: '#D96B8A' }
-
-function speak(text) {
-  if (!text || !window.speechSynthesis) return
-  const u = new SpeechSynthesisUtterance(text)
-  u.lang = 'fr-FR'
-  window.speechSynthesis.cancel()
-  window.speechSynthesis.speak(u)
-}
 
 function WordCard({ data, loading }) {
   if (!data) {
@@ -60,7 +53,7 @@ function WordCard({ data, loading }) {
   )
 }
 
-export default function Notebook({ openLessonId, onLessonOpened }) {
+export default function Notebook({ openLessonId, onLessonOpened, onTextChange }) {
   const [lessonId, setLessonId] = useState(null)
   const [title, setTitle] = useState('')
   const [text, setText] = useState(SAMPLE_TEXT)
@@ -81,6 +74,12 @@ export default function Notebook({ openLessonId, onLessonOpened }) {
       })
       .catch(() => {})
   }, [])
+
+  // Let App.jsx know the current lesson text, so other screens (Exercises,
+  // Chat) can use it as context without lifting the whole editor state.
+  useEffect(() => {
+    onTextChange?.(text)
+  }, [text, onTextChange])
 
   // Load a lesson opened from the Lessons browser.
   useEffect(() => {

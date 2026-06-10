@@ -19,6 +19,7 @@ const TABS = [
 export default function App() {
   const [tab, setTab] = useState('notebook')
   const [openLessonId, setOpenLessonId] = useState(null)
+  const [lessonText, setLessonText] = useState('')
 
   const openLesson = (id) => {
     setOpenLessonId(id)
@@ -31,10 +32,10 @@ export default function App() {
       screen = <Lessons onOpenLesson={openLesson} />
       break
     case 'exercises':
-      screen = <Exercises />
+      screen = <Exercises lessonText={lessonText} />
       break
     case 'chat':
-      screen = <Chat />
+      screen = <Chat lessonText={lessonText} />
       break
     case 'summary':
       screen = <Summary />
@@ -43,7 +44,13 @@ export default function App() {
       screen = <Tools />
       break
     default:
-      screen = <Notebook openLessonId={openLessonId} onLessonOpened={() => setOpenLessonId(null)} />
+      screen = (
+        <Notebook
+          openLessonId={openLessonId}
+          onLessonOpened={() => setOpenLessonId(null)}
+          onTextChange={setLessonText}
+        />
+      )
   }
 
   return (
