@@ -72,15 +72,37 @@ CUSTOM_CSS = """
     font-size: 0.76rem; color: #888; display: block; margin-top: 1px; text-transform: capitalize;
 }
 
-/* App title */
-#app-title h2 {
-    color: #002395;
-    font-size: 2rem;
-    border-bottom: 3px solid #ED2939;
-    padding-bottom: 6px;
+/* ── Header banner ──────────────────────────────────────────────────────── */
+#app-header {
+    background: linear-gradient(135deg, #001a6e 0%, #002395 55%, #1f4fd6 100%);
+    border-radius: 16px;
+    padding: 18px 24px 16px;
     margin-bottom: 0;
-    display: inline-block;
+    box-shadow: 0 4px 14px rgba(0,35,149,0.22);
 }
+#app-header .block { background: transparent !important; border: none !important; box-shadow: none !important; }
+#app-title h1 {
+    color: #ffffff !important;
+    font-size: 2.1rem;
+    font-weight: 700;
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+#app-subtitle p { color: #d6e0ff !important; font-size: 0.92rem; margin: 4px 0 0; }
+#app-header .prose, #app-header .prose * { color: #ffffff; }
+#app-subtitle.prose p, #app-subtitle .prose p { color: #d6e0ff !important; }
+
+/* Tricolor accent bar under the header */
+.fc-tricolor-bar {
+    height: 5px;
+    border-radius: 0 0 6px 6px;
+    margin: 0 0 18px;
+    background: linear-gradient(90deg, #002395 0 33.33%, #ffffff 33.33% 66.66%, #ED2939 66.66% 100%);
+}
+
+/* Card spacing polish */
+.gradio-container .tabitem { padding-top: 10px; }
 
 /* Tab selected indicator */
 .tabs > div > .tab-nav button.selected {
@@ -112,6 +134,41 @@ span[data-token]:hover { filter: brightness(0.85); }
 /* Gender legend pills */
 .gender-legend span { border-radius: 12px; padding: 2px 10px; font-size: 0.82rem; font-weight: 600; }
 """
+
+# ── Custom French theme ─────────────────────────────────────────────────────
+# Palette taken from the French flag (bleu #002395 / rouge #ED2939) on a warm
+# "paper" background — distinct from Gradio's default Soft look (Off-Brand badge).
+
+FRENCH_BLUE = gr.themes.Color(
+    c50="#eef1fc", c100="#dbe2f9", c200="#b8c6f3", c300="#94aaed",
+    c400="#5a7de2", c500="#1f4fd6", c600="#002395", c700="#001b73",
+    c800="#001452", c900="#000d35", c950="#00071d", name="frenchblue",
+)
+FRENCH_RED = gr.themes.Color(
+    c50="#fdeced", c100="#fbd9db", c200="#f7b3b8", c300="#f38d94",
+    c400="#f06771", c500="#ED2939", c600="#c91f2d", c700="#a01923",
+    c800="#77131a", c900="#4e0c11", c950="#270609", name="frenchred",
+)
+
+FC_THEME = gr.themes.Soft(
+    primary_hue=FRENCH_BLUE,
+    secondary_hue=FRENCH_RED,
+    neutral_hue=gr.themes.colors.slate,
+    spacing_size=gr.themes.sizes.spacing_lg,
+    radius_size=gr.themes.sizes.radius_lg,
+    font=[gr.themes.GoogleFont("Poppins"), "ui-sans-serif", "system-ui", "sans-serif"],
+    font_mono=[gr.themes.GoogleFont("JetBrains Mono"), "ui-monospace", "monospace"],
+).set(
+    body_background_fill="#FDFAF3",
+    body_background_fill_dark="#11142b",
+    block_background_fill="#ffffff",
+    block_shadow="0 1px 4px rgba(0,35,149,0.06)",
+    button_primary_background_fill="*primary_600",
+    button_primary_background_fill_hover="*primary_700",
+    button_primary_text_color="#ffffff",
+    link_text_color="*primary_600",
+    block_title_text_color="*primary_700",
+)
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -787,7 +844,7 @@ PAGE_JS = """
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
-with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
+with gr.Blocks(title="French Coach") as demo:
 
     # Shared state
     user_id_state       = gr.State(None)
@@ -798,9 +855,14 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
     current_page_id     = gr.State(None)   # page currently loaded in the editor
 
     # ── Header ───────────────────────────────────────────────────────────────
-    with gr.Row(equal_height=True):
+    with gr.Row(equal_height=True, elem_id="app-header"):
         with gr.Column(scale=5, elem_id="app-title"):
-            gr.Markdown("## 🇫🇷 French Coach")
+            gr.Markdown("# 🇫🇷 French Coach")
+            gr.Markdown(
+                "Your daily French notebook — notes, gender at a glance, "
+                "and practice from today's lesson.",
+                elem_id="app-subtitle",
+            )
         with gr.Column(scale=1, min_width=180):
             user_display = gr.Markdown(visible=False)
         if IS_SPACE:
@@ -808,6 +870,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
                 gr.LoginButton(min_width=120)
             with gr.Column(scale=0, min_width=110):
                 gr.LogoutButton(min_width=100)
+    gr.HTML('<div class="fc-tricolor-bar"></div>')
 
     # ── Tabs ─────────────────────────────────────────────────────────────────
     with gr.Tabs():
@@ -1101,4 +1164,4 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS) as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", js=PAGE_JS, theme=gr.themes.Soft())
+    demo.launch(server_name="0.0.0.0", js=PAGE_JS, css=CUSTOM_CSS, theme=FC_THEME)
