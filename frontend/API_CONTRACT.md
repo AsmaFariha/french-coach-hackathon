@@ -151,23 +151,39 @@ Response: `{"reply": "On dit « merci »..."}`
 
 ## Exercises
 
-### `POST /api/exercises/text`
-Generate one fill-in-the-blank exercise from the current lesson.
+### `POST /api/exercises/coach`
+**Coach Agent** (Day 3): plans a balanced 5-7 item practice set from the
+current lesson, grounded against the A1/A2 CEFR syllabus
+(`syllabus_full_a1_c2.json`), generates each item, critiques it, and
+regenerates anything that fails review (max 2 attempts/item). Identified
+concepts are upserted into `concepts` (`covered_on = today`) for the Summary
+tab's "next focus".
 
-Body: `{"lesson_text": "..."}`
+Body: `{"lesson_text": "...", "page_id": "uuid (optional)"}`
 Response:
 ```json
-{"exercise": {"instruction": "Fill in the blank:",
-  "sentence_with_blank": "La ____ mange une pomme.",
-  "answer": "femme", "hint": "...", "explanation": "..."},
- "html": "<div ...>...</div>"}
+{
+  "concepts": [{"id": "verb_etre_present", "name": "Verb: Être (Present Tense)", "cefr_level": "A1", "family": "verb_tenses"}],
+  "exercises": [
+    {"type": "fill_blank", "instruction": "Fill in the blank:", "sentence_with_blank": "...", "answer": "...", "hint": "...", "explanation": "..."},
+    {"type": "multiple_choice", "instruction": "Choose the correct answer:", "question": "...", "options": ["...", "...", "...", "..."], "answer": "...", "explanation": "..."},
+    {"type": "error_detection", "instruction": "Find and fix the mistake:", "sentence": "...", "answer": "...", "explanation": "..."},
+    {"type": "reorder", "instruction": "Put the words in the correct order:", "words": ["...", "..."], "answer": "...", "explanation": "..."},
+    {"type": "translation", "instruction": "Translate to French:", "prompt": "...", "answer": "...", "explanation": "..."}
+  ]
+}
 ```
-`html` = `exercises.render_text_exercise(exercise)` (existing styled markup).
+The frontend shows `exercises` one at a time (see `Exercises.jsx`
+`CoachExercises`).
 
-### `POST /api/exercises/text/check`
-Body: `{"exercise": {...}, "answer": "femme"}`
-Awards `exercise_done` points (always — participation, not correctness).
-Response: `{"correct": true, "html": "<div ...>...</div>"}`
+### `POST /api/exercises/coach/check`
+Check one item's answer. `fill_blank`/`multiple_choice` are checked by exact
+match; `error_detection`/`reorder`/`translation` are graded leniently by the
+LLM (accepts spelling/accent/punctuation variation). Always awards
+`exercise_done` points — participation, not correctness; never red/shaming.
+
+Body: `{"exercise": {...}, "answer": "..."}`
+Response: `{"correct": true, "feedback": "encouraging message", "answer": "model answer"}`
 
 ### `POST /api/exercises/dialogue`
 Start a new dialogue scene from the lesson.

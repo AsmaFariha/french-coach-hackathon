@@ -1,5 +1,6 @@
 # All LLM prompt templates live here.
 # Encouraging tone is ENFORCED — never shame, never criticise.
+import json
 
 # ── Chat coach ────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ Rules:
 - If a book has no listed author, use an empty string for "author" (never "N/A" or "Unknown").
 """
 
-# ── Text exercise (Day 6) ─────────────────────────────────────────────────────
+# ── Text exercise (Day 6) — kept for app.py's themed-Blocks fallback ──────────
 
 TEXT_EXERCISE_SYSTEM = """\
 Create ONE fill-in-the-blank exercise for an A1-A2 French learner based on the lesson text.
@@ -73,6 +74,117 @@ Respond ONLY in JSON:
   "hint": "one-line hint in English",
   "explanation": "brief, encouraging explanation of why this answer is correct"
 }"""
+
+# ── Coach Agent: plan → generate → critique → revise (Day 3) ──────────────────
+
+COACH_PLAN_SYSTEM = """\
+You are a French course planner for an A1-A2 adult learner preparing for \
+Canadian immigration (TEF/TCF).
+
+Given the learner's lesson notes and a list of CEFR concepts they may be \
+working on, do two things:
+
+1. Identify which 1-4 concept IDs from the provided list this lesson teaches \
+   or reinforces. Use the exact IDs given — never invent new ones. If nothing \
+   matches well, return an empty list.
+2. Plan a balanced set of 5-7 exercises drawing on this lesson, mixing these \
+   types: fill_blank, multiple_choice, error_detection, reorder, translation. \
+   Vary the type from item to item (don't repeat a type back-to-back). Keep \
+   difficulty A1-A2.
+
+Respond ONLY in JSON (no markdown fences):
+{
+  "concepts": ["concept_id", "..."],
+  "plan": [
+    {"type": "fill_blank|multiple_choice|error_detection|reorder|translation",
+     "focus": "one short phrase: what this item practices"}
+  ]
+}"""
+
+def coach_plan_user(lesson_text: str, concepts: list[dict]) -> str:
+    menu = "\n".join(f"- {c['id']}: {c['name']} ({c['cefr_level']}, {c['family']})" for c in concepts)
+    return f"Lesson notes:\n{lesson_text[:1000]}\n\nAvailable concepts:\n{menu}"
+
+
+COACH_EXERCISE_SYSTEM = """\
+Create ONE French exercise for an A1-A2 learner, of the requested type, based \
+on the lesson notes and focus below. Ground it in the vocabulary/grammar from \
+the lesson where possible.
+
+Respond with ONLY the JSON object matching the requested type's shape (no \
+markdown fences, no extra keys):
+
+fill_blank:
+{"type":"fill_blank","instruction":"Fill in the blank:","sentence_with_blank":"a French sentence with one blank shown as ___","answer":"the missing word","hint":"one-line hint in English","explanation":"brief, encouraging explanation"}
+
+multiple_choice:
+{"type":"multiple_choice","instruction":"Choose the correct answer:","question":"a French question or sentence with a blank","options":["...","...","...","..."],"answer":"the correct option, copied verbatim into options","explanation":"brief, encouraging explanation"}
+(exactly 4 options, all distinct; "answer" must equal one of them verbatim; the other 3 are plausible but clearly wrong)
+
+error_detection:
+{"type":"error_detection","instruction":"Find and fix the mistake:","sentence":"a French sentence containing exactly one mistake","answer":"the fully corrected sentence","explanation":"brief, encouraging explanation of the fix"}
+
+reorder:
+{"type":"reorder","instruction":"Put the words in the correct order:","words":["word1","word2","..."],"answer":"the correctly ordered sentence","explanation":"brief, encouraging explanation"}
+
+translation:
+{"type":"translation","instruction":"Translate to French:","prompt":"a short English sentence using lesson vocabulary","answer":"the French translation","explanation":"brief, encouraging explanation, noting an acceptable variant if there is one"}"""
+
+def coach_exercise_user(lesson_text: str, ex_type: str, focus: str, revise_note: str = "") -> str:
+    base = f"Lesson notes:\n{lesson_text[:800]}\n\nExercise type: {ex_type}\nFocus: {focus}"
+    if revise_note:
+        base += f"\n\nA reviewer flagged the previous attempt — please fix this and try again: {revise_note}"
+    return base
+
+
+COACH_CRITIQUE_SYSTEM = """\
+You are a careful reviewer checking a French exercise for an A1-A2 learner \
+before it is shown to them.
+
+Check:
+- Is "answer" actually correct for the given sentence/question?
+- Is there exactly one unambiguous correct answer?
+- For multiple_choice: are there exactly 4 distinct options, with "answer" \
+  matching one of them verbatim, and the other 3 plausible but clearly wrong?
+- For reorder: does "answer" use exactly the words in "words" (no more, no fewer)?
+- Is the difficulty appropriate for A1-A2 (simple vocabulary, common tenses, short sentences)?
+
+Respond ONLY in JSON (no markdown fences):
+{"valid": true|false, "issue": "if invalid, one short sentence describing what to fix; otherwise an empty string"}"""
+
+def coach_critique_user(exercise: dict) -> str:
+    return json.dumps(exercise, ensure_ascii=False)
+
+
+COACH_CHECK_SYSTEM = """\
+Check a French learner's answer to a practice exercise. Be warm and encouraging.
+
+Rules (STRICT):
+- Accept minor spelling/accent/punctuation/capitalization differences as \
+  correct if the grammar and meaning are right.
+- Never use the words: wrong, incorrect, mistake, error, fail, bad, weak.
+- If the answer isn't quite right, gently show the model answer and name ONE \
+  thing to notice next time — frame it as a tip, not a correction.
+- Max 2-3 sentences.
+
+Respond ONLY in JSON (no markdown fences):
+{"correct": true|false, "feedback": "..."}"""
+
+def coach_check_user(exercise: dict, user_answer: str) -> str:
+    content = (
+        exercise.get("sentence_with_blank")
+        or exercise.get("question")
+        or exercise.get("sentence")
+        or exercise.get("prompt")
+        or ""
+    )
+    return (
+        f"Exercise type: {exercise.get('type','')}\n"
+        f"Instruction: {exercise.get('instruction','')}\n"
+        f"Content: {content}\n"
+        f"Model answer: {exercise.get('answer','')}\n"
+        f"Learner's answer: {user_answer}"
+    )
 
 # ── Dialogue exercise (Day 7) ─────────────────────────────────────────────────
 
@@ -141,22 +253,31 @@ Write an encouraging daily summary for a French learner. Be specific, warm, and 
 
 Structure (no headers, flowing prose under 80 words):
 - Lead with one upbeat sentence naming a concrete win.
-- Mention 1-2 more specific accomplishments.
-- End with ONE gentle forward-looking line: "Ready to explore next: …"
+- Mention 1-2 more specific accomplishments. If "Concepts covered so far" is \
+  given, name one or two of them by name as strengths.
+- End with ONE gentle forward-looking line: "Ready to practice next: …" — use \
+  the "Next concept to practice" if given, otherwise suggest something general.
 
 NEVER mention: failures, missed days, weaknesses, streaks lost.
 NEVER use: wrong, mistake, error, fail, weak, behind, struggle."""
 
-def daily_summary_user(stats: dict) -> str:
+def daily_summary_user(stats: dict, concepts: dict | None = None) -> str:
     topics = ", ".join(stats.get("topics", [])) or "getting started"
-    return (
-        f"Pages saved today: {stats.get('pages_today', 0)}\n"
-        f"Words explored: {stats.get('words_clicked', 0)}\n"
-        f"Exercises completed: {stats.get('exercises_today', 0)}\n"
-        f"Dialogue turns: {stats.get('dialogue_turns', 0)}\n"
-        f"Total points: {stats.get('total_points', 0)}\n"
-        f"Topics covered: {topics}"
-    )
+    lines = [
+        f"Pages saved today: {stats.get('pages_today', 0)}",
+        f"Words explored: {stats.get('words_clicked', 0)}",
+        f"Exercises completed: {stats.get('exercises_today', 0)}",
+        f"Dialogue turns: {stats.get('dialogue_turns', 0)}",
+        f"Total points: {stats.get('total_points', 0)}",
+        f"Topics covered: {topics}",
+    ]
+    covered = (concepts or {}).get("covered") or []
+    if covered:
+        lines.append(f"Concepts covered so far: {', '.join(covered)}")
+    next_concept = (concepts or {}).get("next")
+    if next_concept:
+        lines.append(f"Next concept to practice: {next_concept}")
+    return "\n".join(lines)
 
 # ── Pronunciation (Day 9) ─────────────────────────────────────────────────────
 

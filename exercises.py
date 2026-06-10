@@ -6,25 +6,21 @@ import json
 import base64
 import io
 import logging
+import os
 from db import get_cursor
+import gamify
 import llm
 import prompts
 
 logger = logging.getLogger(__name__)
 
-# ── Text exercise (Day 6) ─────────────────────────────────────────────────────
+# ── Text exercise (Day 6) — kept for app.py's themed-Blocks fallback ──────────
 
 def generate_text_exercise(lesson_text: str, user_id: str) -> dict:
     result = llm.chat_json(
         prompts.TEXT_EXERCISE_SYSTEM,
         f"Lesson text:\n{lesson_text[:800]}",
-        fallback={
-            "instruction": "Fill in the blank:",
-            "sentence_with_blank": "Le ___ dort sur la table.",
-            "answer": "chat",
-            "hint": "a small household animal (masculine noun)",
-            "explanation": "Chat (masc.) = cat. Articles: le chat, un chat.",
-        },
+        fallback=_FALLBACK_EXERCISES["fill_blank"],
     )
     _save_exercise(user_id, None, "text", result.get("sentence_with_blank"), result.get("answer"), result)
     return result
@@ -54,6 +50,162 @@ def render_exercise_feedback(correct: bool, answer: str, explanation: str) -> st
         f'<div style="font-size:0.92rem">{explanation}</div>'
         f'</div>'
     )
+
+# ── Coach Agent: plan → generate → critique → revise (Day 3) ──────────────────
+
+_SYLLABUS_PATH = os.path.join(os.path.dirname(__file__), "syllabus_full_a1_c2.json")
+_syllabus_concepts: list[dict] | None = None
+
+EXERCISE_TYPES = ["fill_blank", "multiple_choice", "error_detection", "reorder", "translation"]
+
+# Used if the LLM is unreachable — still gives a real, varied 5-item set
+# (degrade gracefully, per CLAUDE.md §1).
+_FALLBACK_EXERCISES = {
+    "fill_blank": {
+        "type": "fill_blank", "instruction": "Fill in the blank:",
+        "sentence_with_blank": "Le ___ dort sur la table.",
+        "answer": "chat", "hint": "a small household animal (masculine noun)",
+        "explanation": "Chat (masc.) = cat. Articles: le chat, un chat.",
+    },
+    "multiple_choice": {
+        "type": "multiple_choice", "instruction": "Choose the correct answer:",
+        "question": "Comment dit-on « I am » en français ?",
+        "options": ["Je suis", "Tu es", "Il est", "Nous sommes"],
+        "answer": "Je suis",
+        "explanation": "« Je suis » = « I am » — first-person singular of être.",
+    },
+    "error_detection": {
+        "type": "error_detection", "instruction": "Find and fix the mistake:",
+        "sentence": "Elle est un étudiante.",
+        "answer": "Elle est une étudiante.",
+        "explanation": "« Étudiante » is feminine, so it takes « une », not « un ».",
+    },
+    "reorder": {
+        "type": "reorder", "instruction": "Put the words in the correct order:",
+        "words": ["je", "le", "matin", "café", "bois", "un"],
+        "answer": "Je bois un café le matin.",
+        "explanation": "Subject + verb + object + time expression is the typical French word order.",
+    },
+    "translation": {
+        "type": "translation", "instruction": "Translate to French:",
+        "prompt": "I would like a coffee, please.",
+        "answer": "Je voudrais un café, s'il vous plaît.",
+        "explanation": "« Je voudrais » (I would like) is a polite, common way to make a request.",
+    },
+}
+
+
+def _load_a1_a2_concepts() -> list[dict]:
+    """A1/A2 concepts from the CEFR syllabus — the Coach Agent's grounding menu."""
+    global _syllabus_concepts
+    if _syllabus_concepts is None:
+        try:
+            with open(_SYLLABUS_PATH, encoding="utf-8") as f:
+                concepts = json.load(f)["concepts"]
+            _syllabus_concepts = [c for c in concepts if c.get("cefr_level") in ("A1", "A2")]
+        except Exception as e:
+            logger.warning("_load_a1_a2_concepts failed: %s", e)
+            _syllabus_concepts = []
+    return _syllabus_concepts
+
+
+def generate_exercise_set(lesson_text: str, user_id: str, page_id: str | None = None) -> dict:
+    """Coach Agent: PLAN -> GENERATE -> CRITIQUE -> REVISE -> RETURN.
+
+    Returns {"concepts": [...], "exercises": [...]} — 5-7 mixed, self-checked
+    exercises grounded in the lesson and the A1/A2 syllabus.
+    """
+    concepts_menu = _load_a1_a2_concepts()
+    menu_ids = {c["id"] for c in concepts_menu}
+
+    plan = llm.chat_json(
+        prompts.COACH_PLAN_SYSTEM,
+        prompts.coach_plan_user(lesson_text, concepts_menu),
+        fallback={"concepts": [], "plan": [{"type": t, "focus": "general practice from this lesson"} for t in EXERCISE_TYPES]},
+    )
+
+    chosen_concepts = [c for c in concepts_menu if c["id"] in (plan.get("concepts") or []) and c["id"] in menu_ids]
+
+    items_plan = [
+        spec for spec in (plan.get("plan") or [])
+        if isinstance(spec, dict) and spec.get("type") in EXERCISE_TYPES
+    ][:7]
+    if not items_plan:
+        items_plan = [{"type": t, "focus": "general practice from this lesson"} for t in EXERCISE_TYPES]
+
+    exercises = [
+        _generate_and_critique(lesson_text, spec["type"], spec.get("focus", "general practice from this lesson"))
+        for spec in items_plan
+    ]
+
+    if chosen_concepts:
+        _mark_concepts_covered(chosen_concepts)
+
+    result = {"concepts": chosen_concepts, "exercises": exercises}
+    _save_exercise(user_id, page_id, "coach_set", None, None, result)
+    return result
+
+
+def _generate_and_critique(lesson_text: str, ex_type: str, focus: str, max_attempts: int = 2) -> dict:
+    """GENERATE -> CRITIQUE -> REVISE, bounded to max_attempts generations."""
+    revise_note = ""
+    exercise = _FALLBACK_EXERCISES[ex_type]
+    for _ in range(max_attempts):
+        exercise = llm.chat_json(
+            prompts.COACH_EXERCISE_SYSTEM,
+            prompts.coach_exercise_user(lesson_text, ex_type, focus, revise_note),
+            fallback=_FALLBACK_EXERCISES[ex_type],
+        )
+        exercise.setdefault("type", ex_type)
+        critique = llm.chat_json(
+            prompts.COACH_CRITIQUE_SYSTEM,
+            prompts.coach_critique_user(exercise),
+            fallback={"valid": True, "issue": ""},
+        )
+        if critique.get("valid", True):
+            break
+        revise_note = critique.get("issue", "")
+    return exercise
+
+
+def _mark_concepts_covered(concepts: list[dict]) -> None:
+    """UPSERT concepts as covered today, so the Summary tab can draw on them."""
+    try:
+        with get_cursor() as cur:
+            for c in concepts:
+                cur.execute(
+                    """INSERT INTO concepts (id, name, cefr_level, family, covered_on)
+                       VALUES (%s, %s, %s, %s, CURRENT_DATE)
+                       ON CONFLICT (id) DO UPDATE SET covered_on = CURRENT_DATE""",
+                    (c["id"], c["name"], c["cefr_level"], c["family"]),
+                )
+    except Exception as e:
+        logger.warning("_mark_concepts_covered failed: %s", e)
+
+
+def check_coach_exercise(exercise: dict, user_answer: str, user_id: str) -> dict:
+    """Check one answer. Always awards participation points — never deducts."""
+    ex_type = exercise.get("type", "fill_blank")
+    correct_answer = (exercise.get("answer") or "").strip()
+    user_answer = (user_answer or "").strip()
+
+    if ex_type in ("fill_blank", "multiple_choice"):
+        correct = user_answer.lower() == correct_answer.lower()
+        feedback = "Exactly right!" if correct else exercise.get("explanation", "")
+    else:
+        graded = llm.chat_json(
+            prompts.COACH_CHECK_SYSTEM,
+            prompts.coach_check_user(exercise, user_answer),
+            fallback={
+                "correct": user_answer.lower() == correct_answer.lower(),
+                "feedback": exercise.get("explanation", ""),
+            },
+        )
+        correct = bool(graded.get("correct"))
+        feedback = graded.get("feedback") or exercise.get("explanation", "")
+
+    gamify.add_points(user_id, "exercise_done")
+    return {"correct": correct, "feedback": feedback, "answer": correct_answer}
 
 # ── Dialogue exercise (Day 7) ─────────────────────────────────────────────────
 

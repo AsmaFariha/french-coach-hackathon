@@ -251,22 +251,20 @@ if __name__ == "__main__":
         reply = llm.chat(messages, stream=False, max_tokens=600)
         return {"reply": reply}
 
-    # ── Text exercise ────────────────────────────────────────────────────────
+    # ── Coach Agent: mixed exercise set ─────────────────────────────────────
 
-    @app.post("/api/exercises/text")
-    async def api_exercise_text(payload: dict):
+    @app.post("/api/exercises/coach")
+    async def api_exercise_coach(payload: dict):
         lesson_text = payload.get("lesson_text") or ""
-        exercise = ex.generate_text_exercise(lesson_text, USER_ID)
-        return {"exercise": exercise, "html": ex.render_text_exercise(exercise)}
+        page_id = payload.get("page_id")
+        result = ex.generate_exercise_set(lesson_text, USER_ID, page_id)
+        return result
 
-    @app.post("/api/exercises/text/check")
-    async def api_exercise_text_check(payload: dict):
+    @app.post("/api/exercises/coach/check")
+    async def api_exercise_coach_check(payload: dict):
         exercise = payload.get("exercise") or {}
-        answer = (payload.get("answer") or "").strip().lower()
-        correct = answer == (exercise.get("answer", "") or "").strip().lower()
-        gamify.add_points(USER_ID, "exercise_done")
-        html = ex.render_exercise_feedback(correct, exercise.get("answer", ""), exercise.get("explanation", ""))
-        return {"correct": correct, "html": html}
+        answer = payload.get("answer") or ""
+        return ex.check_coach_exercise(exercise, answer, USER_ID)
 
     # ── Dialogue ─────────────────────────────────────────────────────────────
 

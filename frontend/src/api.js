@@ -50,9 +50,9 @@ export const wordCard = (token, meanings) => post('/word-card', { ...token, mean
 export const sendChat = (message, history, lessonText) =>
   post('/chat', { message, history, lesson_text: lessonText })
 
-// Exercises — text
-export const generateTextExercise = (lessonText) => post('/exercises/text', { lesson_text: lessonText })
-export const checkTextExercise = (exercise, answer) => post('/exercises/text/check', { exercise, answer })
+// Exercises — coach (mixed set)
+export const generateCoachSet = (lessonText) => post('/exercises/coach', { lesson_text: lessonText })
+export const checkCoachExercise = (exercise, answer) => post('/exercises/coach/check', { exercise, answer })
 
 // Exercises — dialogue
 export const startDialogue = (lessonText) => post('/exercises/dialogue', { lesson_text: lessonText })

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  generateTextExercise,
-  checkTextExercise,
+  generateCoachSet,
+  checkCoachExercise,
   startDialogue,
   sendDialogueReply,
   generateVisualExercise,
@@ -11,46 +11,96 @@ import {
 import { speak, speakAll } from '../tts'
 
 const SUBTABS = [
-  { id: 'text', label: '📝 Text' },
+  { id: 'coach', label: '🧠 Coach' },
   { id: 'dialogue', label: '💬 Dialogue' },
   { id: 'visual', label: '📷 Visual' },
   { id: 'pronunciation', label: '🎤 Pronunciation' },
 ]
 
-// ── Text exercise ─────────────────────────────────────────────────────────
+// ── Coach Agent exercise set ────────────────────────────────────────────────
 
-function TextExercise({ lessonText }) {
-  const [exercise, setExercise] = useState(null)
-  const [html, setHtml] = useState('')
+const TYPE_LABELS = {
+  fill_blank: 'Fill in the blank',
+  multiple_choice: 'Multiple choice',
+  error_detection: 'Find the change',
+  reorder: 'Put it in order',
+  translation: 'Translate',
+}
+
+function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// French text worth speaking aloud for this exercise (English prompts for
+// "translation" items are deliberately excluded).
+function speakableText(exercise) {
+  switch (exercise?.type) {
+    case 'fill_blank': return exercise.sentence_with_blank
+    case 'multiple_choice': return exercise.question
+    case 'error_detection': return exercise.sentence
+    case 'reorder': return (exercise.words || []).join(' ')
+    default: return ''
+  }
+}
+
+function wordPool(words) {
+  return shuffle((words || []).map((word, key) => ({ word, key })))
+}
+
+function CoachExercises({ lessonText }) {
+  const [data, setData] = useState(null)
+  const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState('')
-  const [feedbackHtml, setFeedbackHtml] = useState('')
+  const [orderPool, setOrderPool] = useState([])
+  const [orderChosen, setOrderChosen] = useState([])
+  const [feedback, setFeedback] = useState(null)
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState('')
 
+  const exercises = data?.exercises || []
+  const total = exercises.length
+  const exercise = exercises[index]
+  const done = !!data && index >= total
+
+  const resetItem = (ex) => {
+    setAnswer('')
+    setFeedback(null)
+    setOrderPool(ex?.type === 'reorder' ? wordPool(ex.words) : [])
+    setOrderChosen([])
+  }
+
   const handleGenerate = async () => {
     setLoading(true)
     setError('')
-    setFeedbackHtml('')
-    setAnswer('')
+    setData(null)
+    setIndex(0)
+    resetItem(null)
     try {
-      const data = await generateTextExercise(lessonText)
-      setExercise(data.exercise)
-      setHtml(data.html)
+      const result = await generateCoachSet(lessonText)
+      setData(result)
+      resetItem(result.exercises?.[0])
     } catch (e) {
-      setError(`Could not generate an exercise: ${e.message}`)
+      setError(`Could not generate exercises: ${e.message}`)
     } finally {
       setLoading(false)
     }
   }
 
+  const currentAnswer = exercise?.type === 'reorder' ? orderChosen.map((c) => c.word).join(' ') : answer
+
   const handleCheck = async () => {
-    if (!exercise) return
+    if (!exercise || !currentAnswer.trim()) return
     setChecking(true)
     setError('')
     try {
-      const data = await checkTextExercise(exercise, answer)
-      setFeedbackHtml(data.html)
+      const result = await checkCoachExercise(exercise, currentAnswer)
+      setFeedback(result)
     } catch (e) {
       setError(`Could not check your answer: ${e.message}`)
     } finally {
@@ -58,37 +108,164 @@ function TextExercise({ lessonText }) {
     }
   }
 
+  const handleNext = () => {
+    const next = index + 1
+    setIndex(next)
+    resetItem(exercises[next])
+  }
+
+  const moveToChosen = (item) => {
+    setOrderPool((pool) => pool.filter((w) => w.key !== item.key))
+    setOrderChosen((chosen) => [...chosen, item])
+  }
+
+  const moveToPool = (item) => {
+    setOrderChosen((chosen) => chosen.filter((w) => w.key !== item.key))
+    setOrderPool((pool) => [...pool, item])
+  }
+
   return (
     <div>
       <p className="fc-muted">
-        Generates a fill-in-the-blank exercise from your current notebook lesson.
+        The Coach Agent plans a mixed practice set from your current lesson, checks each item itself, and walks you through it one at a time.
       </p>
       <div className="fc-row">
         <button className="fc-btn fc-btn-primary" onClick={handleGenerate} disabled={loading}>
-          {loading ? 'Generating…' : exercise ? '✨ New exercise' : '✨ Generate exercise'}
+          {loading ? 'Planning your practice set…' : data ? '🔄 New practice set' : '✨ Generate practice set'}
         </button>
       </div>
 
       {error && <div className="fc-status fc-error">⚠ {error}</div>}
 
-      {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
+      {data && data.concepts?.length > 0 && (
+        <div className="fc-row">
+          <span className="fc-muted">This lesson covers:</span>
+          {data.concepts.map((c) => (
+            <span key={c.id} className="fc-pill">{c.name}</span>
+          ))}
+        </div>
+      )}
 
       {exercise && (
-        <>
-          <div className="fc-row" style={{ marginTop: 12 }}>
-            <input
-              className="fc-input"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Your answer…"
-              onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
-            />
-            <button className="fc-btn" onClick={handleCheck} disabled={checking || !answer.trim()}>
-              {checking ? 'Checking…' : 'Check answer'}
-            </button>
+        <div className="fc-card fc-coach-item">
+          <div className="fc-coach-progress">
+            <span className="fc-pill">{TYPE_LABELS[exercise.type] || exercise.type}</span>
+            <span className="fc-muted">Exercise {index + 1} of {total}</span>
           </div>
-          {feedbackHtml && <div dangerouslySetInnerHTML={{ __html: feedbackHtml }} />}
-        </>
+
+          <p className="fc-coach-instruction">{exercise.instruction}</p>
+
+          {exercise.type === 'translation' && (
+            <p className="fc-coach-content fc-coach-content-en">{exercise.prompt}</p>
+          )}
+
+          {exercise.type !== 'translation' && exercise.type !== 'reorder' && (
+            <p className="fc-coach-content">
+              {speakableText(exercise)}{' '}
+              <button className="fc-chat-speak-btn" onClick={() => speak(speakableText(exercise))}>🔊 Hear it</button>
+            </p>
+          )}
+
+          {exercise.type === 'fill_blank' && (
+            <p className="fc-muted">Hint: {exercise.hint}</p>
+          )}
+
+          {exercise.type === 'multiple_choice' && (
+            <div className="fc-coach-options">
+              {(exercise.options || []).map((opt) => (
+                <button
+                  key={opt}
+                  className={`fc-coach-option${answer === opt ? ' fc-coach-option-selected' : ''}`}
+                  onClick={() => !feedback && setAnswer(opt)}
+                  disabled={!!feedback}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {exercise.type === 'reorder' && (
+            <>
+              <button className="fc-chat-speak-btn" onClick={() => speak(speakableText(exercise))}>🔊 Hear the words</button>
+              <div className="fc-coach-chips fc-coach-chips-answer">
+                {orderChosen.length === 0 && <span className="fc-muted">Tap the words below, in order…</span>}
+                {orderChosen.map((item) => (
+                  <button
+                    key={item.key}
+                    className="fc-coach-chip fc-coach-chip-chosen"
+                    onClick={() => !feedback && moveToPool(item)}
+                    disabled={!!feedback}
+                  >
+                    {item.word}
+                  </button>
+                ))}
+              </div>
+              <div className="fc-coach-chips">
+                {orderPool.map((item) => (
+                  <button
+                    key={item.key}
+                    className="fc-coach-chip"
+                    onClick={() => !feedback && moveToChosen(item)}
+                    disabled={!!feedback}
+                  >
+                    {item.word}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {(exercise.type === 'fill_blank' || exercise.type === 'error_detection' || exercise.type === 'translation') && (
+            <div className="fc-row" style={{ marginTop: 8 }}>
+              <input
+                className="fc-input"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="Your answer…"
+                disabled={!!feedback}
+                onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
+              />
+            </div>
+          )}
+
+          {!feedback && (
+            <div className="fc-row" style={{ marginTop: 8 }}>
+              <button className="fc-btn fc-btn-primary" onClick={handleCheck} disabled={checking || !currentAnswer.trim()}>
+                {checking ? 'Checking…' : 'Check answer'}
+              </button>
+            </div>
+          )}
+
+          {feedback && (
+            <>
+              <div className={`fc-coach-feedback${feedback.correct ? ' fc-coach-feedback-correct' : ''}`}>
+                <div className="fc-coach-feedback-title">
+                  {feedback.correct ? '✅ Exactly right!' : '💡 Nice try!'}
+                </div>
+                <div>{feedback.feedback}</div>
+                {!feedback.correct && (
+                  <div className="fc-coach-feedback-answer">
+                    Model answer: <strong>{feedback.answer}</strong>{' '}
+                    <button className="fc-chat-speak-btn" onClick={() => speak(feedback.answer)}>🔊</button>
+                  </div>
+                )}
+              </div>
+              <div className="fc-row" style={{ marginTop: 8 }}>
+                <button className="fc-btn fc-btn-primary" onClick={handleNext}>
+                  {index + 1 < total ? 'Next exercise →' : '🎉 Finish set'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {done && (
+        <div className="fc-empty">
+          <p>🎉 Practice set complete — great work!</p>
+          <button className="fc-btn fc-btn-primary" onClick={handleGenerate}>✨ Generate another set</button>
+        </div>
       )}
     </div>
   )
@@ -384,7 +561,7 @@ function PronunciationExercise({ lessonText }) {
 // ── Screen ─────────────────────────────────────────────────────────────────
 
 export default function Exercises({ lessonText }) {
-  const [view, setView] = useState('text')
+  const [view, setView] = useState('coach')
 
   return (
     <div>
@@ -400,7 +577,7 @@ export default function Exercises({ lessonText }) {
         ))}
       </nav>
 
-      {view === 'text' && <TextExercise lessonText={lessonText} />}
+      {view === 'coach' && <CoachExercises lessonText={lessonText} />}
       {view === 'dialogue' && <DialogueExercise lessonText={lessonText} />}
       {view === 'visual' && <VisualExercise />}
       {view === 'pronunciation' && <PronunciationExercise lessonText={lessonText} />}

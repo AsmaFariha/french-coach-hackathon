@@ -2,12 +2,17 @@
 Points ledger and daily summary.
 Points are ALWAYS additive — never deducted.
 """
+import json
 import logging
+import os
 from db import get_cursor
 import llm
 import prompts
 
 logger = logging.getLogger(__name__)
+
+_SYLLABUS_PATH = os.path.join(os.path.dirname(__file__), "syllabus_full_a1_c2.json")
+_a1_a2_concepts: list[dict] | None = None
 
 POINT_VALUES = {
     "daily_open":     5,
@@ -87,18 +92,47 @@ def get_daily_stats(user_id: str) -> dict:
         return {"pages_today":0,"exercises_today":0,"dialogue_turns":0,"words_clicked":0,"total_points":0}
 
 
+def _load_a1_a2_concepts() -> list[dict]:
+    global _a1_a2_concepts
+    if _a1_a2_concepts is None:
+        try:
+            with open(_SYLLABUS_PATH, encoding="utf-8") as f:
+                concepts = json.load(f)["concepts"]
+            _a1_a2_concepts = [c for c in concepts if c.get("cefr_level") in ("A1", "A2")]
+        except Exception as e:
+            logger.warning("_load_a1_a2_concepts failed: %s", e)
+            _a1_a2_concepts = []
+    return _a1_a2_concepts
+
+
+def get_concepts_progress() -> dict:
+    """Concepts the Coach Agent has identified as covered, plus the next one
+    up in syllabus order — powers the Summary tab's strengths + next focus."""
+    try:
+        with get_cursor() as cur:
+            cur.execute("SELECT id FROM concepts WHERE covered_on IS NOT NULL")
+            covered_ids = {r["id"] for r in cur.fetchall()}
+    except Exception:
+        covered_ids = set()
+    a1_a2 = _load_a1_a2_concepts()
+    covered = [c["name"] for c in a1_a2 if c["id"] in covered_ids]
+    next_concept = next((c["name"] for c in a1_a2 if c["id"] not in covered_ids), None)
+    return {"covered": covered, "next": next_concept}
+
+
 def get_daily_summary(user_id: str) -> str:
     stats = get_daily_stats(user_id)
+    concepts = get_concepts_progress()
     result = llm.chat([
         {"role": "system", "content": prompts.DAILY_SUMMARY_SYSTEM},
-        {"role": "user",   "content": prompts.daily_summary_user(stats)},
+        {"role": "user",   "content": prompts.daily_summary_user(stats, concepts)},
     ])
     if result.startswith("⚠"):
-        return _fallback(stats)
+        return _fallback(stats, concepts)
     return result
 
 
-def _fallback(stats: dict) -> str:
+def _fallback(stats: dict, concepts: dict | None = None) -> str:
     total = stats.get("total_points", 0)
     pages = stats.get("pages_today", 0)
     ex    = stats.get("exercises_today", 0)
@@ -107,5 +141,12 @@ def _fallback(stats: dict) -> str:
         lines.append(f"You saved {pages} lesson{'s' if pages > 1 else ''} today.")
     if ex:
         lines.append(f"You completed {ex} exercise{'s' if ex > 1 else ''}.")
-    lines.append("Ready to explore next: more vocabulary and dialogue practice. 🇫🇷")
+    covered = (concepts or {}).get("covered") or []
+    if covered:
+        lines.append(f"You're building skills in: {', '.join(covered[-3:])}.")
+    next_concept = (concepts or {}).get("next")
+    if next_concept:
+        lines.append(f"Ready to practice next: {next_concept}.")
+    else:
+        lines.append("Ready to explore next: more vocabulary and dialogue practice. 🇫🇷")
     return "\n\n".join(lines)
