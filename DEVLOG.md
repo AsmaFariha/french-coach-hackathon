@@ -235,3 +235,21 @@ Two new tools live under the **🔤 Tools** tab: a **Gender Checker** — type a
 - **`API_CONTRACT.md`** updated: new `/api/gender-check`/`/api/translate` sections, `/api/summary` response shape, and the Tools screen's endpoint map.
 
 ---
+
+## Notion-style block editor — 2026-06-11 — A real notebook editor, not a textarea
+
+### What changed (plain English)
+
+The Notebook's plain text box is now a proper block-based note editor, like Notion. Type `# ` for a heading, `- ` or `1. ` for a list, `> ` for a highlighted note/quote, and `---` for a divider — each converts as you type. Select any text to get a small floating toolbar for **bold**, *italic*, and ~~strikethrough~~. Typing `/` on an empty line opens a menu to insert any block type. Everything you already use — gender colors, the word card, Save/Update/Delete, Chat, Exercises, Tools — keeps working exactly as before, and old lessons saved before this change open up just fine.
+
+### What changed (technical)
+
+- **`frontend/src/blocks.js`** (new) — pure helpers, no React. `markdownToBlocks`/`blocksToMarkdown` round-trip a small internal Markdown-ish dialect (`# /## /### ` headings, `- `/`* `/`1. ` lists, `> ` quotes, `---` dividers, `**bold**`/`*italic*`/`~~strike~~` inline) to/from `{id, type, html}` block objects. `blocksToPlainText`/`stripMarkdown` strip all markers for spaCy/LLM context.
+- **`frontend/src/components/BlockEditor.jsx`** (new) — renders one `contentEditable` element per block (grouped `<ul>`/`<ol>` for consecutive list items). Uncontrolled-DOM pattern with ref callbacks + a `pendingFocus` state to restore caret position after structural edits (split on Enter, merge on Backspace, type-conversion via shortcuts or the `/` slash menu, exit-list on empty Enter). A `selectionchange` listener shows a floating Bold/Italic/Strikethrough toolbar using `document.execCommand`.
+- **Storage stays a single string** — `raw_text`/`text` is now this Markdown dialect instead of plain prose, but it's still just a string: **no DB schema change, no API change, no new dependencies**. Old plain-prose lessons parse as one paragraph block automatically.
+- **`frontend/src/screens/Notebook.jsx`** — swapped the `<textarea>` for `<BlockEditor key={lessonId ?? 'new'} value={text} onChange={setText} />`; `/api/annotate` calls and the `lessonText` sent to Chat/Exercises/Tools now use `stripMarkdown(text)` so spaCy/the LLM never see `#`/`-`/`**`/`>` markers.
+- **`frontend/src/App.css`** — new block-editor styles: `.fc-block-editor` container, heading sizes, `.fc-block-quote` (reuses the `.fc-gender-pattern` accent look with a left border), `.fc-block-divider`, list spacing, `.fc-slash-menu`/`.fc-floating-toolbar` (absolute-positioned dropdown/pill).
+- **Bug found and fixed during testing**: the `# `/`- `/`> `/etc. auto-format shortcuts changed a block's `type` (e.g. `<p>` → `<h1>`) but never restored focus to the new DOM element React creates for the new tag, so subsequent keystrokes went nowhere. Fixed by setting `pendingFocus({ id, position: 'start' })` after the type conversion in [BlockEditor.jsx](frontend/src/components/BlockEditor.jsx).
+- **Verified via Playwright** against the rebuilt `app-custom` container: all block types + shortcuts + the `/` slash menu + floating toolbar work; an existing 55-block real lesson (with a Markdown table from the Notion import) loads with zero console errors; a new lesson with heading/bold/list/quote round-trips correctly through Save → Lessons search → reopen; gender-color annotation on the new content shows clean prose with no Markdown leakage.
+
+---

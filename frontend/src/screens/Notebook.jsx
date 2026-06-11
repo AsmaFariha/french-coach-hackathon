@@ -11,6 +11,8 @@ import {
 } from '../api'
 import { speak } from '../tts'
 import WordCard from '../components/WordCard'
+import BlockEditor from '../components/BlockEditor'
+import { stripMarkdown } from '../blocks'
 
 const SAMPLE_TEXT =
   'Le petit chat noir dort sur la grande table. ' +
@@ -41,8 +43,9 @@ export default function Notebook({ openLessonId, onLessonOpened, onTextChange })
 
   // Let App.jsx know the current lesson text, so other screens (Exercises,
   // Chat) can use it as context without lifting the whole editor state.
+  // Markdown markers are stripped so the LLM/spaCy see clean prose.
   useEffect(() => {
-    onTextChange?.(text)
+    onTextChange?.(stripMarkdown(text))
   }, [text, onTextChange])
 
   // Load a lesson opened from the Lessons browser.
@@ -71,7 +74,7 @@ export default function Notebook({ openLessonId, onLessonOpened, onTextChange })
 
   const handleAnnotate = async () => {
     try {
-      const data = await annotate(text, colorsOn)
+      const data = await annotate(stripMarkdown(text), colorsOn)
       setAnn({ tokens: data.tokens, meanings: data.meanings })
       setHtml(data.html)
       setWordCardData(null)
@@ -181,13 +184,7 @@ export default function Notebook({ openLessonId, onLessonOpened, onTextChange })
           )}
         </div>
 
-        <textarea
-          className="fc-textarea"
-          rows={6}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste your French class notes here…"
-        />
+        <BlockEditor key={lessonId ?? 'new'} value={text} onChange={setText} />
 
         <div className="fc-row">
           <button className="fc-btn fc-btn-primary" onClick={handleAnnotate}>Annotate</button>

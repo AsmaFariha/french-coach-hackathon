@@ -870,3 +870,145 @@
     max-width: 92%;
   }
 }
+
+/* ── Block editor (Notion-style notebook) ──────────────────────────────── */
+.fc-block-editor {
+  position: relative;
+  border: 1px solid var(--fc-border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  min-height: 160px;
+}
+
+.fc-block {
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: 2px 0;
+  line-height: 1.6;
+}
+
+.fc-block:focus {
+  background: rgba(0, 35, 149, 0.03);
+}
+
+.fc-block[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--fc-muted);
+  pointer-events: none;
+}
+
+h1.fc-block {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-top: 14px;
+}
+
+h2.fc-block {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+h3.fc-block {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+blockquote.fc-block {
+  border-left: 3px solid var(--fc-blue);
+  background: rgba(0, 35, 149, 0.05);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  font-style: italic;
+}
+
+hr.fc-block-divider {
+  border: none;
+  border-top: 1px solid var(--fc-border);
+  margin: 14px 4px;
+}
+
+.fc-block-list {
+  margin: 2px 0;
+  padding-left: 26px;
+}
+
+li.fc-block {
+  padding: 1px 4px;
+}
+
+/* ── Slash command menu ─────────────────────────────────────────────────── */
+.fc-slash-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 190px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--fc-border);
+  border-radius: 8px;
+  box-shadow: var(--fc-card-shadow);
+  padding: 4px;
+}
+
+.fc-slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--fc-ink);
+  cursor: pointer;
+}
+
+.fc-slash-menu-item:hover,
+.fc-slash-menu-item-active {
+  background: rgba(0, 35, 149, 0.06);
+  color: var(--fc-blue);
+}
+
+.fc-slash-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--fc-muted);
+}
+
+/* ── Floating selection toolbar ─────────────────────────────────────────── */
+.fc-floating-toolbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  background: var(--fc-ink);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transform: translateX(-50%);
+}
+
+.fc-floating-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.fc-floating-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
