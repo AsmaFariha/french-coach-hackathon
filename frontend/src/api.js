@@ -58,20 +58,21 @@ export const sendChat = (message, history, lessonText) =>
   post('/chat', { message, history, lesson_text: lessonText })
 
 // Exercises — coach (mixed set)
-export const generateCoachSet = (lessonText) => post('/exercises/coach', { lesson_text: lessonText })
+export const generateCoachSet = (lessonText, topic) => post('/exercises/coach', { lesson_text: lessonText, topic })
 export const checkCoachExercise = (exercise, answer) => post('/exercises/coach/check', { exercise, answer })
 
 // Exercises — dialogue
-export const startDialogue = (lessonText) => post('/exercises/dialogue', { lesson_text: lessonText })
+export const startDialogue = (lessonText, topic) => post('/exercises/dialogue', { lesson_text: lessonText, topic })
 export const sendDialogueReply = (dialogue, replies, reply) =>
   post('/exercises/dialogue/reply', { dialogue, replies, reply })
 
 // Exercises — visual
-export const generateSampleVisualExercise = (lessonText) =>
-  post('/exercises/visual/sample', { lesson_text: lessonText })
+export const generateSampleVisualExercise = (lessonText, topic) =>
+  post('/exercises/visual/sample', { lesson_text: lessonText, topic })
 
 // Exercises — pronunciation
-export const getPronunciationTarget = (lessonText) => post('/exercises/pronunciation/target', { lesson_text: lessonText })
+export const getPronunciationTarget = (lessonText, topic) =>
+  post('/exercises/pronunciation/target', { lesson_text: lessonText, topic })
 export const checkPronunciation = (target, transcription) =>
   post('/exercises/pronunciation/check', { target, transcription })
 

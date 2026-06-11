@@ -277,7 +277,8 @@ if __name__ == "__main__":
     async def api_exercise_coach(payload: dict):
         lesson_text = payload.get("lesson_text") or ""
         page_id = payload.get("page_id")
-        result = ex.generate_exercise_set(lesson_text, USER_ID, page_id)
+        topic = (payload.get("topic") or "").strip()
+        result = ex.generate_exercise_set(lesson_text, USER_ID, page_id, topic)
         return result
 
     @app.post("/api/exercises/coach/check")
@@ -291,7 +292,8 @@ if __name__ == "__main__":
     @app.post("/api/exercises/dialogue")
     async def api_exercise_dialogue(payload: dict):
         lesson_text = payload.get("lesson_text") or ""
-        dialogue = ex.generate_dialogue(lesson_text, USER_ID)
+        topic = (payload.get("topic") or "").strip()
+        dialogue = ex.generate_dialogue(lesson_text, USER_ID, topic)
         hint = ex.get_next_user_hint(dialogue, 0)
         transcript_html = ex.render_dialogue(dialogue, [])
         return {"dialogue": dialogue, "replies": [], "hint": f"Your turn: {hint}", "transcript_html": transcript_html}
@@ -322,18 +324,25 @@ if __name__ == "__main__":
     async def api_exercise_visual_sample(payload: dict):
         """Matched-image visual exercise (Day 4): no upload needed — pick a
         pre-generated image for this lesson's topic and build exercises from
-        its description."""
+        its description. An optional learner-chosen `topic` can steer both
+        the image picked and the exercises generated from it."""
         lesson_text = payload.get("lesson_text") or ""
-        topic = nlp.detect_category(lesson_text) if lesson_text.strip() else "Daily Life"
-        image = ex.pick_sample_image(topic, USER_ID)
+        topic = (payload.get("topic") or "").strip()
+
+        image_topic = nlp.detect_category(topic) if topic else "General"
+        if image_topic == "General":
+            image_topic = nlp.detect_category(lesson_text) if lesson_text.strip() else "Daily Life"
+
+        image = ex.pick_sample_image(image_topic, USER_ID)
         if not image:
             raise HTTPException(status_code=404, detail="no sample images available")
-        result = ex.generate_visual_topic_exercise(image, lesson_text, USER_ID)
+        result = ex.generate_visual_topic_exercise(image, lesson_text, USER_ID, topic)
         gamify.add_points(USER_ID, "photo_exercise")
         return {
             "image_url": f"/custom/sample_images/{image['filename']}",
-            "topic": topic,
-            "html": ex.render_visual_exercises(result),
+            "topic": image_topic,
+            "image_summary": result.get("image_summary", ""),
+            "exercises": result.get("exercises", []),
         }
 
     # ── Pronunciation ────────────────────────────────────────────────────────
@@ -341,7 +350,8 @@ if __name__ == "__main__":
     @app.post("/api/exercises/pronunciation/target")
     async def api_pron_target(payload: dict):
         lesson_text = payload.get("lesson_text") or ""
-        target = ex.generate_pronunciation_target(lesson_text)
+        topic = (payload.get("topic") or "").strip()
+        target = ex.generate_pronunciation_target(lesson_text, topic)
         return {"target": target, "html": _pron_target_html(target)}
 
     @app.post("/api/exercises/pronunciation/check")

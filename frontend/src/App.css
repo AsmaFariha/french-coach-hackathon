@@ -473,6 +473,32 @@
   border: 1px solid var(--fc-border);
 }
 
+.fc-visual-summary {
+  font-style: italic;
+}
+
+.fc-exercises-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.fc-tools-panel {
+  position: sticky;
+  top: 16px;
+}
+
+@media (max-width: 900px) {
+  .fc-exercises-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .fc-tools-panel {
+    position: static;
+  }
+}
+
 .fc-mic-btn.fc-mic-listening {
   border-color: var(--fc-blue);
   color: var(--fc-blue);
@@ -818,6 +844,25 @@
 /* ── Translator ─────────────────────────────────────────────────────────── */
 .fc-translate-result {
   max-width: 560px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fc-border);
+}
+
+.fc-translator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.fc-translator-widget {
+  position: relative;
+}
+
+.fc-translator-remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .fc-translate-main {

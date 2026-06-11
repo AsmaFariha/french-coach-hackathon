@@ -101,9 +101,12 @@ Respond ONLY in JSON (no markdown fences):
   ]
 }"""
 
-def coach_plan_user(lesson_text: str, concepts: list[dict]) -> str:
+def coach_plan_user(lesson_text: str, concepts: list[dict], topic: str = "") -> str:
     menu = "\n".join(f"- {c['id']}: {c['name']} ({c['cefr_level']}, {c['family']})" for c in concepts)
-    return f"Lesson notes:\n{lesson_text[:1000]}\n\nAvailable concepts:\n{menu}"
+    base = f"Lesson notes:\n{lesson_text[:1000]}\n\nAvailable concepts:\n{menu}"
+    if topic.strip():
+        base += f"\n\nFocus topic requested by the learner (optional, prioritize if relevant): {topic.strip()}"
+    return base
 
 
 COACH_EXERCISE_SYSTEM = """\
@@ -176,6 +179,7 @@ def coach_check_user(exercise: dict, user_answer: str) -> str:
         or exercise.get("question")
         or exercise.get("sentence")
         or exercise.get("prompt")
+        or exercise.get("content")
         or ""
     )
     return (
@@ -205,6 +209,16 @@ Respond ONLY in JSON:
     {"speaker": "user", "hint": "what to do/say in English"}
   ]
 }"""
+
+def dialogue_user(lesson_text: str, topic: str = "") -> str:
+    base = f"Lesson text:\n{lesson_text[:600]}"
+    if topic.strip():
+        base += (
+            f"\n\nFocus topic requested by the learner: {topic.strip()}. "
+            f"Build the scene around this topic where possible, using lesson "
+            f"vocabulary if it fits naturally."
+        )
+    return base
 
 DIALOGUE_FEEDBACK_SYSTEM = """\
 Give brief, encouraging feedback on a French learner's dialogue reply.
@@ -249,7 +263,7 @@ Respond ONLY in JSON:
 # ── Visual exercise from a matched sample image (Day 4) ───────────────────────
 
 VISUAL_TOPIC_EXERCISE_SYSTEM = """\
-Create 3-5 French language exercises for an A1-A2 learner based on the image \
+Create 5-6 French language exercises for an A1-A2 learner based on the image \
 scene described below. Where it fits naturally, connect an exercise to \
 vocabulary or grammar from the learner's current lesson notes — but every \
 exercise must stay grounded in what's actually in the image.
@@ -269,8 +283,15 @@ Respond ONLY in JSON:
   ]
 }"""
 
-def visual_topic_exercise_user(description: str, lesson_text: str) -> str:
+def visual_topic_exercise_user(description: str, lesson_text: str, topic: str = "") -> str:
     base = f"Image scene:\n{description}"
+    if topic.strip():
+        base += (
+            f"\n\nFocus topic requested by the learner: {topic.strip()}. "
+            f"Prioritize this topic when choosing which parts of the image to "
+            f"build exercises around, while staying grounded in what's "
+            f"actually in the image."
+        )
     if lesson_text.strip():
         base += f"\n\nLearner's current lesson notes (for connections, not required):\n{lesson_text[:500]}"
     return base

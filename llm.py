@@ -174,9 +174,9 @@ def chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
         return _openbmb_chat(messages, stream, max_tokens)
 
 
-def chat_json(system: str, user: str, fallback: dict | None = None) -> dict:
+def chat_json(system: str, user: str, fallback: dict | None = None, max_tokens: int = 512) -> dict:
     """Call LLM and parse JSON response. Returns fallback dict on any error."""
-    raw = chat([{"role": "system", "content": system}, {"role": "user", "content": user}])
+    raw = chat([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=max_tokens)
     if isinstance(raw, str) and raw.startswith("⚠"):
         return fallback or {}
     try:

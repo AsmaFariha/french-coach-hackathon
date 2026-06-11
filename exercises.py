@@ -109,18 +109,19 @@ def _load_a1_a2_concepts() -> list[dict]:
     return _syllabus_concepts
 
 
-def generate_exercise_set(lesson_text: str, user_id: str, page_id: str | None = None) -> dict:
+def generate_exercise_set(lesson_text: str, user_id: str, page_id: str | None = None, topic: str = "") -> dict:
     """Coach Agent: PLAN -> GENERATE -> CRITIQUE -> REVISE -> RETURN.
 
     Returns {"concepts": [...], "exercises": [...]} — 5-7 mixed, self-checked
-    exercises grounded in the lesson and the A1/A2 syllabus.
+    exercises grounded in the lesson and the A1/A2 syllabus. `topic` is an
+    optional learner-chosen focus; if blank, the agent picks from the lesson.
     """
     concepts_menu = _load_a1_a2_concepts()
     menu_ids = {c["id"] for c in concepts_menu}
 
     plan = llm.chat_json(
         prompts.COACH_PLAN_SYSTEM,
-        prompts.coach_plan_user(lesson_text, concepts_menu),
+        prompts.coach_plan_user(lesson_text, concepts_menu, topic),
         fallback={"concepts": [], "plan": [{"type": t, "focus": "general practice from this lesson"} for t in EXERCISE_TYPES]},
     )
 
@@ -209,10 +210,10 @@ def check_coach_exercise(exercise: dict, user_answer: str, user_id: str) -> dict
 
 # ── Dialogue exercise (Day 7) ─────────────────────────────────────────────────
 
-def generate_dialogue(lesson_text: str, user_id: str) -> dict:
+def generate_dialogue(lesson_text: str, user_id: str, topic: str = "") -> dict:
     result = llm.chat_json(
         prompts.DIALOGUE_SYSTEM,
-        f"Lesson text:\n{lesson_text[:600]}",
+        prompts.dialogue_user(lesson_text, topic),
         fallback={
             "scene": "At a café in Montréal",
             "agent_role": "Serveur",
@@ -413,13 +414,14 @@ def _mark_image_used(user_id: str, image_id: str) -> None:
         logger.warning("_mark_image_used failed: %s", e)
 
 
-def generate_visual_topic_exercise(image: dict, lesson_text: str, user_id: str) -> dict:
-    """Build 3-5 exercises grounded in a pre-generated sample image's
+def generate_visual_topic_exercise(image: dict, lesson_text: str, user_id: str, topic: str = "") -> dict:
+    """Build 5-6 exercises grounded in a pre-generated sample image's
     description (no vision call at request time)."""
     result = llm.chat_json(
         prompts.VISUAL_TOPIC_EXERCISE_SYSTEM,
-        prompts.visual_topic_exercise_user(image["description"], lesson_text),
+        prompts.visual_topic_exercise_user(image["description"], lesson_text, topic),
         fallback={"image_summary": image["description"], "exercises": []},
+        max_tokens=1536,
     )
     _mark_image_used(user_id, image["id"])
     _save_exercise(user_id, None, "visual", None, None, result)
@@ -427,8 +429,13 @@ def generate_visual_topic_exercise(image: dict, lesson_text: str, user_id: str) 
 
 # ── Pronunciation (Day 9) ─────────────────────────────────────────────────────
 
-def generate_pronunciation_target(lesson_text: str) -> dict:
-    context = f"Lesson: {lesson_text[:300]}" if lesson_text.strip() else "A common A1 phrase"
+def generate_pronunciation_target(lesson_text: str, topic: str = "") -> dict:
+    parts = []
+    if topic.strip():
+        parts.append(f"Focus topic requested by the learner: {topic.strip()}")
+    if lesson_text.strip():
+        parts.append(f"Lesson: {lesson_text[:300]}")
+    context = "\n".join(parts) if parts else "A common A1 phrase"
     return llm.chat_json(
         prompts.PRONUNCIATION_TARGET_SYSTEM,
         context,
