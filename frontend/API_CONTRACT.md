@@ -206,14 +206,6 @@ Response:
 ```
 (`hint` is `"🎉 Dialogue complete! Great work!"` once finished.)
 
-### `POST /api/exercises/visual`
-Multipart form upload. Awards `photo_exercise` points.
-
-Form field: `image` (file, jpeg/png)
-Response: `{"html": "<div ...>...</div>"}`
-(`html` = `exercises.render_visual_exercises(result)`, includes an `error`
-case if the image can't be read.)
-
 ### `POST /api/exercises/visual/sample`
 Matched-image visual exercise (Day 4): no upload needed. Picks one of ~15
 pre-generated images (`frontend/public/sample_images/`, generated once via
@@ -232,8 +224,8 @@ Response:
   "html": "<div ...>...</div>"
 }
 ```
-(`html` = `exercises.render_visual_exercises(result)`, same shape as above
-plus a `hint` line per exercise.)
+(`html` = `exercises.render_visual_exercises(result)`, includes a `hint` line
+per exercise.)
 
 ### `POST /api/exercises/pronunciation/target`
 Body: `{"lesson_text": "..."}`

@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   generateCoachSet,
   checkCoachExercise,
   startDialogue,
   sendDialogueReply,
-  generateVisualExercise,
   generateSampleVisualExercise,
   getPronunciationTarget,
   checkPronunciation,
@@ -375,33 +374,7 @@ function DialogueExercise({ lessonText }) {
 
 // ── Visual exercise ───────────────────────────────────────────────────────
 
-const VISUAL_MODES = [
-  { id: 'sample', label: '✨ Sample photo' },
-  { id: 'upload', label: '📤 Upload your own' },
-]
-
 function VisualExercise({ lessonText }) {
-  const [mode, setMode] = useState('sample')
-
-  return (
-    <div>
-      <div className="fc-row fc-visual-modes">
-        {VISUAL_MODES.map((m) => (
-          <button
-            key={m.id}
-            className={`fc-subtab${mode === m.id ? ' fc-subtab-active' : ''}`}
-            onClick={() => setMode(m.id)}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-      {mode === 'sample' ? <SampleVisualExercise lessonText={lessonText} /> : <UploadVisualExercise />}
-    </div>
-  )
-}
-
-function SampleVisualExercise({ lessonText }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -440,68 +413,6 @@ function SampleVisualExercise({ lessonText }) {
           <div dangerouslySetInnerHTML={{ __html: data.html }} />
         </>
       )}
-    </div>
-  )
-}
-
-function UploadVisualExercise() {
-  const [file, setFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [html, setHtml] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
-    }
-  }, [previewUrl])
-
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setFile(f)
-    setPreviewUrl(URL.createObjectURL(f))
-    setHtml('')
-    setError('')
-  }
-
-  const handleGenerate = async () => {
-    if (!file) return
-    setLoading(true)
-    setError('')
-    try {
-      const data = await generateVisualExercise(file)
-      setHtml(data.html)
-    } catch (e) {
-      setError(`Could not generate exercises from this photo: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div>
-      <p className="fc-muted">
-        Snap a photo of a menu, sign, or recipe — the coach reads it and builds exercises from what's in the picture.
-      </p>
-      <div className="fc-row">
-        <input className="fc-input" type="file" accept="image/*" onChange={handleFileChange} />
-        <button className="fc-btn fc-btn-primary" onClick={handleGenerate} disabled={!file || loading}>
-          {loading ? 'Reading photo…' : '✨ Generate exercises'}
-        </button>
-      </div>
-
-      {previewUrl && (
-        <div className="fc-row">
-          <img className="fc-visual-preview" src={previewUrl} alt="Selected" />
-        </div>
-      )}
-
-      {error && <div className="fc-status fc-error">⚠ {error}</div>}
-
-      {html && <div dangerouslySetInnerHTML={{ __html: html }} />}
     </div>
   )
 }

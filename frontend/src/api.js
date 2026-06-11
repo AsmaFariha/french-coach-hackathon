@@ -60,11 +60,6 @@ export const sendDialogueReply = (dialogue, replies, reply) =>
   post('/exercises/dialogue/reply', { dialogue, replies, reply })
 
 // Exercises — visual
-export const generateVisualExercise = (file) => {
-  const form = new FormData()
-  form.append('image', file)
-  return post('/exercises/visual', form)
-}
 export const generateSampleVisualExercise = (lessonText) =>
   post('/exercises/visual/sample', { lesson_text: lessonText })
 

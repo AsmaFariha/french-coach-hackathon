@@ -21,15 +21,13 @@ Does NOT modify app.py, which remains the themed-Blocks fallback entrypoint
 (7860); local Docker Compose overrides CUSTOM_UI_PORT=7861 so it can run
 alongside app.py on 7860.
 """
-import io
 import json
 import os
 
 from dotenv import load_dotenv
-from fastapi import UploadFile, File, Form, HTTPException
+from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
 import gradio as gr
 
 import nlp
@@ -297,18 +295,6 @@ if __name__ == "__main__":
         return {"replies": replies, "transcript_html": transcript_html, "hint": hint_text, "feedback_html": feedback_html}
 
     # ── Visual exercise ──────────────────────────────────────────────────────
-
-    @app.post("/api/exercises/visual")
-    async def api_exercise_visual(image: UploadFile = File(...)):
-        data = await image.read()
-        try:
-            pil_image = Image.open(io.BytesIO(data))
-            pil_image.load()
-        except Exception:
-            raise HTTPException(status_code=400, detail="could not read image")
-        result = ex.generate_visual_exercise(pil_image, USER_ID)
-        gamify.add_points(USER_ID, "photo_exercise")
-        return {"html": ex.render_visual_exercises(result)}
 
     @app.post("/api/exercises/visual/sample")
     async def api_exercise_visual_sample(payload: dict):
