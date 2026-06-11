@@ -655,7 +655,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 560px;
+  max-width: 640px;
 }
 
 .fc-summary-points {
@@ -685,6 +685,68 @@
   margin-bottom: 0;
 }
 
+.fc-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.fc-stat-card {
+  text-align: center;
+  padding: 12px 10px;
+}
+
+.fc-stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--fc-blue);
+}
+
+.fc-stat-label {
+  font-size: 0.78rem;
+  color: var(--fc-muted);
+  margin-top: 2px;
+}
+
+.fc-summary-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fc-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--fc-ink);
+}
+
+.fc-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--fc-border);
+  overflow: hidden;
+}
+
+.fc-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--fc-blue) 0%, var(--fc-blue-light) 100%);
+  transition: width 0.3s ease;
+}
+
+.fc-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fc-summary-next {
+  font-size: 0.92rem;
+  color: var(--fc-ink);
+}
+
 /* ── Loading / empty states ────────────────────────────────────────────── */
 .fc-empty {
   text-align: center;
@@ -711,6 +773,69 @@
 
 @keyframes fc-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ── Tools: small inline icon button (speak) ───────────────────────────── */
+.fc-btn-icon {
+  padding: 2px 8px;
+  font-size: 0.85rem;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* ── Gender Checker ─────────────────────────────────────────────────────── */
+.fc-gender-result {
+  max-width: 480px;
+}
+
+.fc-gender-headword {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.fc-gender-pills {
+  margin-bottom: 12px;
+}
+
+.fc-gender-example {
+  margin-bottom: 10px;
+}
+
+.fc-gender-example-fr {
+  font-size: 1.05rem;
+  margin-bottom: 2px;
+}
+
+.fc-gender-pattern {
+  font-size: 0.9rem;
+  color: var(--fc-blue);
+  background: rgba(0, 35, 149, 0.06);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+/* ── Translator ─────────────────────────────────────────────────────────── */
+.fc-translate-result {
+  max-width: 560px;
+}
+
+.fc-translate-main {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.fc-translate-alts {
+  font-size: 0.92rem;
+  margin-bottom: 10px;
+}
+
+.fc-translate-example {
+  font-size: 0.95rem;
+  border-top: 1px solid var(--fc-border);
+  padding-top: 10px;
+  line-height: 1.6;
 }
 
 /* ── Mobile ─────────────────────────────────────────────────────────────── */

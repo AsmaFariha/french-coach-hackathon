@@ -10,6 +10,20 @@ def get_nlp():
     return _nlp
 
 
+def word_info(word: str) -> dict:
+    """Lemma + POS for a single word (instant, offline) — used by the Gender
+    Checker tool (Day 5) to give the LLM a starting point. Gender itself is
+    NOT reliable from spaCy on an isolated word (no determiner/agreement
+    context to disambiguate, e.g. "pomme" alone tags Masc though it's
+    feminine), so gender/articles are determined by the LLM instead."""
+    word = word.strip()
+    doc = get_nlp()(word)
+    tok = next((t for t in doc if not t.is_space), None)
+    if tok is None:
+        return {"word": word, "lemma": word, "pos": None}
+    return {"word": tok.text, "lemma": tok.lemma_, "pos": tok.pos_}
+
+
 def annotate(text: str) -> dict:
     """Run spaCy annotation. Returns annotation dict matching DB JSONB schema."""
     doc = get_nlp()(text)

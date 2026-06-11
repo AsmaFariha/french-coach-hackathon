@@ -232,3 +232,23 @@ def get_word_meaning(text: str, lemma: str, pos: str, gender: str) -> dict:
         prompts.word_meaning_user(text, lemma, pos, gender),
         fallback={"meaning": "(API offline — try again later)", "grammar": ""},
     )
+
+
+def get_gender_check(word: str, pos: str) -> dict:
+    return chat_json(
+        prompts.GENDER_CHECK_SYSTEM,
+        prompts.gender_check_user(word, pos),
+        fallback={
+            "gender": None, "article": "", "indefinite_article": "",
+            "example": "", "example_translation": "",
+            "pattern_note": "(API offline — try again later)",
+        },
+    )
+
+
+def translate_text(text: str, direction: str, lesson_text: str = "") -> dict:
+    return chat_json(
+        prompts.TRANSLATE_SYSTEM,
+        prompts.translate_user(text, direction, lesson_text),
+        fallback={"translation": "(API offline — try again later)", "alternatives": [], "example_fr": "", "example_en": ""},
+    )

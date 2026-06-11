@@ -242,13 +242,70 @@ Response: `{"html": "<div ...>...</div>"}`
 
 ---
 
+## Gender Checker + Translator (Tools)
+
+### `POST /api/gender-check`
+Look up a single French noun. spaCy (`nlp.word_info`) gives a
+lemma/POS hint, but gender itself is **not** reliable from spaCy on an
+isolated word (no determiner context to disambiguate — e.g. "pomme" alone
+tags `Masc` though it's feminine), so the LLM is authoritative for
+gender/articles/example/pattern note.
+
+Body: `{"word": "pomme"}`
+Response:
+```json
+{
+  "word": "pomme", "lemma": "pomme", "pos": "NOUN",
+  "gender": "Fem", "article": "la", "indefinite_article": "une",
+  "example": "J'achète une pomme pour le goûter.",
+  "example_translation": "I'm buying an apple for the snack.",
+  "pattern_note": "Words ending in -e are often feminine."
+}
+```
+
+### `POST /api/translate`
+Translate a word/phrase with alternatives and a bilingual example. If
+`lesson_text` is given, it's used as register/vocabulary context only.
+
+Body: `{"text": "good morning", "direction": "en_fr"|"fr_en", "lesson_text": "..."}`
+Response:
+```json
+{
+  "translation": "bonjour",
+  "alternatives": [],
+  "example_fr": "Bonjour, comment allez-vous ?",
+  "example_en": "Good morning, how are you?"
+}
+```
+`example_fr`/`example_en` are always in their named language regardless of
+`direction` (the LLM was inconsistent about which side of `example`/
+`example_translation` was French, so the schema is now language-explicit).
+
+---
+
 ## Summary / gamification
 
 ### `GET /api/summary`
 Calls `gamify.try_daily_open` (idempotent per day, awards `daily_open`
-points once/day) then returns the encouraging daily summary + total points.
+points once/day) then returns the encouraging daily summary, total points,
+today's activity stats, and A1-A2 concept progress for the dashboard.
 
-Response: `{"summary": "You've covered 6 concepts...", "total_points": 142}`
+Response:
+```json
+{
+  "summary": "You've covered 6 concepts...",
+  "total_points": 142,
+  "daily_stats": {
+    "pages_today": 1, "exercises_today": 5,
+    "dialogue_turns": 0, "words_clicked": 3, "total_points": 142
+  },
+  "concepts": {
+    "covered": ["Personal Subject Pronouns", "Regular -ER Verbs (Present)"],
+    "next": "French Pronunciation & Sound System",
+    "covered_count": 8, "total_count": 49
+  }
+}
+```
 
 ---
 
@@ -261,6 +318,6 @@ Response: `{"summary": "You've covered 6 concepts...", "total_points": 142}`
 3. **Exercises** — the four `/api/exercises/...` groups.
 4. **Chat coach** — `/api/chat`.
 5. **Summary dashboard** — `/api/summary`.
-6. **Gender Checker + Translator (Tools)** — `/api/annotate`, `/api/word-card`
-   reused as a standalone "paste any text" utility, separate from the saved
-   notebook.
+6. **Tools** — `/api/annotate`/`/api/word-card` (Text Checker), `/api/gender-check`
+   (Gender Checker), `/api/translate` (Translator) — all standalone utilities,
+   separate from the saved notebook.

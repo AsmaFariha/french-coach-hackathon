@@ -117,7 +117,12 @@ def get_concepts_progress() -> dict:
     a1_a2 = _load_a1_a2_concepts()
     covered = [c["name"] for c in a1_a2 if c["id"] in covered_ids]
     next_concept = next((c["name"] for c in a1_a2 if c["id"] not in covered_ids), None)
-    return {"covered": covered, "next": next_concept}
+    return {
+        "covered": covered,
+        "next": next_concept,
+        "covered_count": len(covered),
+        "total_count": len(a1_a2),
+    }
 
 
 def get_daily_summary(user_id: str) -> str:

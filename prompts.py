@@ -332,3 +332,54 @@ Respond ONLY in JSON:
 
 def pronunciation_feedback_user(target: str, transcription: str) -> str:
     return f"Target phrase: {target}\nWhat the learner said: {transcription}"
+
+# ── Gender Checker (Day 5) ────────────────────────────────────────────────────
+
+GENDER_CHECK_SYSTEM = """\
+You are a French language reference for a beginner learner (A1-A2).
+Given a French word, determine:
+1. Its grammatical gender if it's a noun: "Masc" or "Fem" (null if it isn't \
+   a noun or has no gender).
+2. Its definite article ("le", "la", or "l'") and indefinite article \
+   ("un" or "une") — empty strings if it has no gender.
+3. A short, natural example sentence using the word, with its English translation.
+4. One memorable "pattern note" — a tip for remembering this word's gender \
+   (an ending pattern, e.g. "words ending in -tion are almost always feminine", \
+   or, if there's no reliable pattern, a short note saying so and suggesting \
+   to memorize it with its article).
+
+Respond ONLY in JSON (no markdown fences):
+{"gender": "Masc"|"Fem"|null, "article": "...", "indefinite_article": "...",
+ "example": "...", "example_translation": "...", "pattern_note": "..."}"""
+
+def gender_check_user(word: str, pos: str) -> str:
+    pos_str = f" (likely part of speech: {pos})" if pos else ""
+    return f"Word: {word}{pos_str}"
+
+# ── Translator (Day 5) ────────────────────────────────────────────────────────
+
+TRANSLATE_SYSTEM = """\
+You are a French-English translator and coach for an A1-A2 learner preparing \
+for Canadian immigration (TEF/TCF).
+
+Given text and a translation direction, provide:
+1. The main translation.
+2. 0-2 natural alternative phrasings (different register or common variant), \
+   only if genuinely useful — an empty list is fine.
+3. One short example sentence that uses the translation in context, given in \
+   BOTH languages.
+
+Respond ONLY in JSON (no markdown fences). Always use these exact keys — \
+"example_fr" is always the French sentence and "example_en" is always its \
+English counterpart, regardless of translation direction:
+{"translation": "...", "alternatives": ["..."], "example_fr": "...", "example_en": "..."}"""
+
+def translate_user(text: str, direction: str, lesson_text: str) -> str:
+    dir_label = {
+        "en_fr": "English to French",
+        "fr_en": "French to English",
+    }.get(direction, "auto-detect the source language and translate to the other")
+    base = f"Translate ({dir_label}): {text}"
+    if lesson_text.strip():
+        base += f"\n\nLearner's current lesson notes (use for natural register/vocabulary if relevant):\n{lesson_text[:300]}"
+    return base

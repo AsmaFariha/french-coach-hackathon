@@ -41,7 +41,7 @@ export default function App() {
       screen = <Summary />
       break
     case 'tools':
-      screen = <Tools />
+      screen = <Tools lessonText={lessonText} />
       break
     default:
       screen = (

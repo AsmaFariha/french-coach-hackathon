@@ -46,6 +46,13 @@ export const annotate = (text, colorsOn) => post('/annotate', { text, colors_on:
 export const renderAnnotations = (annotations, colorsOn) => post('/render', { annotations, colors_on: colorsOn })
 export const wordCard = (token, meanings) => post('/word-card', { ...token, meanings })
 
+// Gender Checker
+export const genderCheck = (word) => post('/gender-check', { word })
+
+// Translator
+export const translateText = (text, direction, lessonText) =>
+  post('/translate', { text, direction, lesson_text: lessonText })
+
 // Chat
 export const sendChat = (message, history, lessonText) =>
   post('/chat', { message, history, lesson_text: lessonText })

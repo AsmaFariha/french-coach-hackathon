@@ -226,6 +226,28 @@ if __name__ == "__main__":
             "meanings": meanings,
         }
 
+    # ── Gender Checker (Day 5) ───────────────────────────────────────────────
+
+    @app.post("/api/gender-check")
+    async def api_gender_check(payload: dict):
+        word = (payload.get("word") or "").strip()
+        if not word:
+            raise HTTPException(status_code=400, detail="word is required")
+        info = nlp.word_info(word)
+        extra = llm.get_gender_check(info["word"], info.get("pos") or "")
+        return {**info, **extra}
+
+    # ── Translator (Day 5) ───────────────────────────────────────────────────
+
+    @app.post("/api/translate")
+    async def api_translate(payload: dict):
+        text = (payload.get("text") or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="text is required")
+        direction = payload.get("direction") or "auto"
+        lesson_text = payload.get("lesson_text") or ""
+        return llm.translate_text(text, direction, lesson_text)
+
     # ── Chat ─────────────────────────────────────────────────────────────────
 
     @app.post("/api/chat")
@@ -342,7 +364,9 @@ if __name__ == "__main__":
             pass
         summary = gamify.get_daily_summary(USER_ID)
         total = gamify.get_total_points(USER_ID)
-        return {"summary": summary, "total_points": total}
+        daily_stats = gamify.get_daily_stats(USER_ID)
+        concepts = gamify.get_concepts_progress()
+        return {"summary": summary, "total_points": total, "daily_stats": daily_stats, "concepts": concepts}
 
     # ── React build, served at / (Space root, Phase 5) and /custom ──────────
     # `/` is the Space entrypoint: drop Gradio's default Blocks "/" route(s)
