@@ -43,6 +43,17 @@ CREATE TABLE IF NOT EXISTS points (
 );
 CREATE INDEX IF NOT EXISTS idx_points_user ON points(user_id, earned_at DESC);
 
+-- Tracks which pre-generated sample images a user has already practiced
+-- with, so the matched-image visual exercise (Day 4) doesn't repeat one
+-- before cycling through the rest of the set.
+CREATE TABLE IF NOT EXISTS user_image_usage (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    image_id TEXT NOT NULL,
+    used_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_image_usage ON user_image_usage(user_id, image_id);
+
 -- PRIVATE table (defined here but never written by the public Space)
 CREATE TABLE IF NOT EXISTS mistakes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

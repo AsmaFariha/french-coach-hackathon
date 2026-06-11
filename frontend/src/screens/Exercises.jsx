@@ -5,6 +5,7 @@ import {
   startDialogue,
   sendDialogueReply,
   generateVisualExercise,
+  generateSampleVisualExercise,
   getPronunciationTarget,
   checkPronunciation,
 } from '../api'
@@ -374,7 +375,76 @@ function DialogueExercise({ lessonText }) {
 
 // ── Visual exercise ───────────────────────────────────────────────────────
 
-function VisualExercise() {
+const VISUAL_MODES = [
+  { id: 'sample', label: '✨ Sample photo' },
+  { id: 'upload', label: '📤 Upload your own' },
+]
+
+function VisualExercise({ lessonText }) {
+  const [mode, setMode] = useState('sample')
+
+  return (
+    <div>
+      <div className="fc-row fc-visual-modes">
+        {VISUAL_MODES.map((m) => (
+          <button
+            key={m.id}
+            className={`fc-subtab${mode === m.id ? ' fc-subtab-active' : ''}`}
+            onClick={() => setMode(m.id)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === 'sample' ? <SampleVisualExercise lessonText={lessonText} /> : <UploadVisualExercise />}
+    </div>
+  )
+}
+
+function SampleVisualExercise({ lessonText }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleGenerate = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const result = await generateSampleVisualExercise(lessonText)
+      setData(result)
+    } catch (e) {
+      setError(`Could not generate exercises: ${e.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <p className="fc-muted">
+        The coach picks a photo matched to your lesson's topic and builds exercises from what's in it — no upload needed.
+      </p>
+      <div className="fc-row">
+        <button className="fc-btn fc-btn-primary" onClick={handleGenerate} disabled={loading}>
+          {loading ? 'Choosing a photo…' : data ? '🔄 Try another photo' : '✨ Generate exercises'}
+        </button>
+      </div>
+
+      {error && <div className="fc-status fc-error">⚠ {error}</div>}
+
+      {data && (
+        <>
+          <div className="fc-row">
+            <img className="fc-visual-preview" src={data.image_url} alt={data.topic} />
+          </div>
+          <div dangerouslySetInnerHTML={{ __html: data.html }} />
+        </>
+      )}
+    </div>
+  )
+}
+
+function UploadVisualExercise() {
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [html, setHtml] = useState('')
@@ -579,7 +649,7 @@ export default function Exercises({ lessonText }) {
 
       {view === 'coach' && <CoachExercises lessonText={lessonText} />}
       {view === 'dialogue' && <DialogueExercise lessonText={lessonText} />}
-      {view === 'visual' && <VisualExercise />}
+      {view === 'visual' && <VisualExercise lessonText={lessonText} />}
       {view === 'pronunciation' && <PronunciationExercise lessonText={lessonText} />}
     </div>
   )

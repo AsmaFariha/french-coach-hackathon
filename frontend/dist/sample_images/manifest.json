@@ -1,0 +1,94 @@
+{
+  "images": [
+    {
+      "id": "greetings",
+      "topic": "Greetings",
+      "filename": "greetings.jpg",
+      "description": "Two people greet each other (la bise) outside a French café in the morning. A small chalkboard sign by the door reads 'Bonjour!' and 'Bienvenue'. Vocabulary: bonjour, bonsoir, bienvenue, la bise, le matin."
+    },
+    {
+      "id": "numbers",
+      "topic": "Numbers",
+      "filename": "numbers.jpg",
+      "description": "A boulangerie display case with pastries, each on a small handwritten price tag in euros (e.g. 1,20 €, 2,50 €, 3,00 €). Vocabulary: le prix, combien, euro, centime, un croissant, une baguette, numbers 1-20."
+    },
+    {
+      "id": "food_dining",
+      "topic": "Food & Dining",
+      "filename": "food_dining.jpg",
+      "description": "A bistro chalkboard menu lists dishes like soupe à l'oignon, steak frites, salade verte, and crème brûlée with prices in euros. A wooden table in front holds a basket of bread and a glass of red wine. Vocabulary: la carte, le plat, l'entrée, le dessert, la boisson, commander, l'addition."
+    },
+    {
+      "id": "food_dining_2",
+      "topic": "Food & Dining",
+      "filename": "food_dining_2.jpg",
+      "description": "A market stall (marché) with crates of tomatoes, pommes (apples), oranges, carottes, and pommes de terre, each with a sign showing a price per kilo in euros. Vocabulary: le marché, le kilo, les fruits, les légumes, frais/fraîche, acheter."
+    },
+    {
+      "id": "transportation",
+      "topic": "Transportation",
+      "filename": "transportation.jpg",
+      "description": "A Métro platform with blue-and-white signs showing the line number and direction (e.g. 'Direction Nation'), a train pulling in, and an exit sign reading 'Sortie'. Vocabulary: le métro, la station, le billet, la ligne, monter, descendre, la sortie."
+    },
+    {
+      "id": "family",
+      "topic": "Family",
+      "filename": "family.jpg",
+      "description": "A family — parents, a son, and a daughter — eating dinner together at a home dining table, smiling and talking. Vocabulary: la famille, le père, la mère, le fils, la fille, le frère, la sœur, le dîner, en famille."
+    },
+    {
+      "id": "time_calendar",
+      "topic": "Time & Calendar",
+      "filename": "time_calendar.jpg",
+      "description": "A kitchen wall clock shows the time, next to a paper wall calendar with the days of the week written in French (lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche). Vocabulary: l'heure, aujourd'hui, demain, hier, la semaine, le jour."
+    },
+    {
+      "id": "shopping",
+      "topic": "Shopping",
+      "filename": "shopping.jpg",
+      "description": "A boutique window display with mannequins wearing un manteau, une écharpe, and des chaussures, each with a price tag in euros, and a 'Soldes' (sale) sign. Vocabulary: le magasin, le prix, les soldes, porter, acheter, la taille."
+    },
+    {
+      "id": "weather",
+      "topic": "Weather",
+      "filename": "weather.jpg",
+      "description": "People walk along a French street holding umbrellas (des parapluies) under a grey, rainy sky. Vocabulary: il pleut, le temps, le nuage, le parapluie, froid, le ciel."
+    },
+    {
+      "id": "daily_life",
+      "topic": "Daily Life",
+      "filename": "daily_life.jpg",
+      "description": "A breakfast table with un café, un croissant on a plate, and a folded newspaper, with morning sunlight coming through a window. Vocabulary: le petit-déjeuner, se réveiller, le matin, prendre le petit-déjeuner."
+    },
+    {
+      "id": "daily_life_2",
+      "topic": "Daily Life",
+      "filename": "daily_life_2.jpg",
+      "description": "A person relaxes on a sofa in the evening, reading a book and holding a cup of tea, with a lamp lit nearby. Vocabulary: le soir, lire, se détendre, le livre, le thé, le canapé."
+    },
+    {
+      "id": "health",
+      "topic": "Health",
+      "filename": "health.jpg",
+      "description": "A pharmacy (la pharmacie) storefront with a glowing green cross sign and French text on the window advertising medicines. Vocabulary: la pharmacie, le médicament, malade, la santé, avoir mal."
+    },
+    {
+      "id": "places_directions",
+      "topic": "Places & Directions",
+      "filename": "places_directions.jpg",
+      "description": "A street corner has blue street-name plaques (e.g. 'Rue de Rivoli') and a signpost with arrows pointing toward 'Le Louvre' and 'La Tour Eiffel'. Vocabulary: la rue, à droite, à gauche, tout droit, près de, loin de."
+    },
+    {
+      "id": "hobbies_leisure",
+      "topic": "Hobbies & Leisure",
+      "filename": "hobbies_leisure.jpg",
+      "description": "In a park, some people read books on benches, two play chess at a stone table, and a jogger runs past. Vocabulary: le parc, lire, jouer aux échecs, courir, le temps libre, le loisir."
+    },
+    {
+      "id": "grammar",
+      "topic": "Grammar",
+      "filename": "grammar.jpg",
+      "description": "An open textbook shows a conjugation table for a French verb (columns for je, tu, il/elle, nous, vous, ils/elles), next to a notebook, pen, and a cup of coffee on a desk. Vocabulary: le verbe, conjuguer, le présent, le sujet, la phrase."
+    }
+  ]
+}

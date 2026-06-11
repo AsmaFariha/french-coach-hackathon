@@ -327,18 +327,103 @@ def render_visual_exercises(result: dict) -> str:
 
     parts = [f'<p style="color:#666;font-size:0.9rem;font-style:italic">📷 {summary}</p>']
     for i, ex in enumerate(exercises, 1):
+        hint = ex.get("hint", "")
+        hint_html = f'<div style="font-size:0.85rem;color:#888;font-style:italic;margin-bottom:6px">Hint: {hint}</div>' if hint else ""
         parts.append(
             f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:14px;'
             f'margin-bottom:10px;background:#fff">'
             f'<div style="font-size:0.8rem;color:#888;margin-bottom:4px">Exercise {i} — {ex.get("type","").title()}</div>'
             f'<div style="font-size:0.95rem;font-weight:600;margin-bottom:6px">{ex.get("instruction","")}</div>'
             f'<div style="font-family:Georgia,serif;font-size:1.1rem;margin-bottom:8px">{ex.get("content","")}</div>'
+            f'{hint_html}'
             f'<details style="font-size:0.9rem">'
             f'<summary style="cursor:pointer;color:#4A90D9">Show answer</summary>'
             f'<div style="margin-top:6px"><strong>{ex.get("answer","")}</strong> — {ex.get("explanation","")}</div>'
             f'</details></div>'
         )
     return "".join(parts)
+
+# ── Visual exercise from a matched sample image (Day 4) ───────────────────────
+
+_SAMPLE_IMAGES_DIR = os.path.join(os.path.dirname(__file__), "frontend", "public", "sample_images")
+_sample_images: list[dict] | None = None
+
+
+def _load_sample_images() -> list[dict]:
+    """Pre-generated images + hand-written descriptions (see generate_sample_images.py)."""
+    global _sample_images
+    if _sample_images is None:
+        try:
+            with open(os.path.join(_SAMPLE_IMAGES_DIR, "manifest.json"), encoding="utf-8") as f:
+                _sample_images = json.load(f)["images"]
+        except Exception as e:
+            logger.warning("_load_sample_images failed: %s", e)
+            _sample_images = []
+    return _sample_images
+
+
+def pick_sample_image(topic: str, user_id: str) -> dict | None:
+    """Pick a sample image matching the lesson's topic that this user hasn't
+    seen yet. Falls back to any unseen image, then to the least-recently-used
+    one, so images don't repeat until the set is exhausted."""
+    images = _load_sample_images()
+    if not images:
+        return None
+
+    try:
+        with get_cursor() as cur:
+            cur.execute("SELECT image_id FROM user_image_usage WHERE user_id = %s", (user_id,))
+            seen = {r["image_id"] for r in cur.fetchall()}
+    except Exception:
+        seen = set()
+
+    for candidates in (
+        [img for img in images if img["topic"] == topic and img["id"] not in seen],
+        [img for img in images if img["id"] not in seen],
+    ):
+        if candidates:
+            return candidates[0]
+
+    # Everyone's seen everything — cycle back to the least-recently-used image.
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                """SELECT image_id, MAX(used_at) AS last_used FROM user_image_usage
+                   WHERE user_id = %s GROUP BY image_id ORDER BY last_used ASC LIMIT 1""",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                by_id = {img["id"]: img for img in images}
+                if row["image_id"] in by_id:
+                    return by_id[row["image_id"]]
+    except Exception:
+        pass
+    return images[0]
+
+
+def _mark_image_used(user_id: str, image_id: str) -> None:
+    try:
+        with get_cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_image_usage (user_id, image_id) VALUES (%s, %s)",
+                (user_id, image_id),
+            )
+    except Exception as e:
+        logger.warning("_mark_image_used failed: %s", e)
+
+
+def generate_visual_topic_exercise(image: dict, lesson_text: str, user_id: str) -> dict:
+    """Build 3-5 exercises grounded in a pre-generated sample image's
+    description (no vision call at request time)."""
+    result = llm.chat_json(
+        prompts.VISUAL_TOPIC_EXERCISE_SYSTEM,
+        prompts.visual_topic_exercise_user(image["description"], lesson_text),
+        fallback={"image_summary": image["description"], "exercises": []},
+    )
+    _mark_image_used(user_id, image["id"])
+    _save_exercise(user_id, None, "visual", None, None, result)
+    return result
 
 # ── Pronunciation (Day 9) ─────────────────────────────────────────────────────
 

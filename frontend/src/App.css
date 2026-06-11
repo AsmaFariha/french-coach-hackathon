@@ -473,6 +473,10 @@
   border: 1px solid var(--fc-border);
 }
 
+.fc-visual-modes {
+  margin-bottom: 14px;
+}
+
 .fc-mic-btn.fc-mic-listening {
   border-color: var(--fc-blue);
   color: var(--fc-blue);

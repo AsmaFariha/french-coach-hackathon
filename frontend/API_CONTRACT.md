@@ -214,6 +214,27 @@ Response: `{"html": "<div ...>...</div>"}`
 (`html` = `exercises.render_visual_exercises(result)`, includes an `error`
 case if the image can't be read.)
 
+### `POST /api/exercises/visual/sample`
+Matched-image visual exercise (Day 4): no upload needed. Picks one of ~15
+pre-generated images (`frontend/public/sample_images/`, generated once via
+`generate_sample_images.py`) matching the lesson's detected topic
+(`nlp.detect_category`), avoiding images this user has already seen
+(`user_image_usage`) until the set cycles. Builds 3-5 exercises (with hints)
+grounded in the image's hand-written description — no vision call at request
+time. Awards `photo_exercise` points.
+
+Body: `{"lesson_text": "..."}`
+Response:
+```json
+{
+  "image_url": "/custom/sample_images/food_dining.jpg",
+  "topic": "Food & Dining",
+  "html": "<div ...>...</div>"
+}
+```
+(`html` = `exercises.render_visual_exercises(result)`, same shape as above
+plus a `hint` line per exercise.)
+
 ### `POST /api/exercises/pronunciation/target`
 Body: `{"lesson_text": "..."}`
 Response:

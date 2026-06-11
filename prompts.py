@@ -246,6 +246,35 @@ Respond ONLY in JSON:
   ]
 }"""
 
+# ── Visual exercise from a matched sample image (Day 4) ───────────────────────
+
+VISUAL_TOPIC_EXERCISE_SYSTEM = """\
+Create 3-5 French language exercises for an A1-A2 learner based on the image \
+scene described below. Where it fits naturally, connect an exercise to \
+vocabulary or grammar from the learner's current lesson notes — but every \
+exercise must stay grounded in what's actually in the image.
+
+Respond ONLY in JSON:
+{
+  "image_summary": "what you see (1 sentence)",
+  "exercises": [
+    {
+      "type": "vocabulary|translation|question",
+      "instruction": "...",
+      "content": "the exercise text / question",
+      "hint": "one-line hint in English",
+      "answer": "...",
+      "explanation": "brief, encouraging explanation"
+    }
+  ]
+}"""
+
+def visual_topic_exercise_user(description: str, lesson_text: str) -> str:
+    base = f"Image scene:\n{description}"
+    if lesson_text.strip():
+        base += f"\n\nLearner's current lesson notes (for connections, not required):\n{lesson_text[:500]}"
+    return base
+
 # ── Gamification / daily summary (Day 8) ─────────────────────────────────────
 
 DAILY_SUMMARY_SYSTEM = """\

@@ -65,6 +65,8 @@ export const generateVisualExercise = (file) => {
   form.append('image', file)
   return post('/exercises/visual', form)
 }
+export const generateSampleVisualExercise = (lessonText) =>
+  post('/exercises/visual/sample', { lesson_text: lessonText })
 
 // Exercises — pronunciation
 export const getPronunciationTarget = (lessonText) => post('/exercises/pronunciation/target', { lesson_text: lessonText })

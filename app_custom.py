@@ -310,6 +310,24 @@ if __name__ == "__main__":
         gamify.add_points(USER_ID, "photo_exercise")
         return {"html": ex.render_visual_exercises(result)}
 
+    @app.post("/api/exercises/visual/sample")
+    async def api_exercise_visual_sample(payload: dict):
+        """Matched-image visual exercise (Day 4): no upload needed — pick a
+        pre-generated image for this lesson's topic and build exercises from
+        its description."""
+        lesson_text = payload.get("lesson_text") or ""
+        topic = nlp.detect_category(lesson_text) if lesson_text.strip() else "Daily Life"
+        image = ex.pick_sample_image(topic, USER_ID)
+        if not image:
+            raise HTTPException(status_code=404, detail="no sample images available")
+        result = ex.generate_visual_topic_exercise(image, lesson_text, USER_ID)
+        gamify.add_points(USER_ID, "photo_exercise")
+        return {
+            "image_url": f"/custom/sample_images/{image['filename']}",
+            "topic": topic,
+            "html": ex.render_visual_exercises(result),
+        }
+
     # ── Pronunciation ────────────────────────────────────────────────────────
 
     @app.post("/api/exercises/pronunciation/target")
