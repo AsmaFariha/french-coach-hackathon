@@ -135,7 +135,7 @@ def generate_exercise_set(lesson_text: str, user_id: str, page_id: str | None = 
         items_plan = [{"type": t, "focus": "general practice from this lesson"} for t in EXERCISE_TYPES]
 
     exercises = [
-        _generate_and_critique(lesson_text, spec["type"], spec.get("focus", "general practice from this lesson"))
+        _generate_and_critique(lesson_text, spec["type"], spec.get("focus", "general practice from this lesson"), topic=topic)
         for spec in items_plan
     ]
 
@@ -147,14 +147,14 @@ def generate_exercise_set(lesson_text: str, user_id: str, page_id: str | None = 
     return result
 
 
-def _generate_and_critique(lesson_text: str, ex_type: str, focus: str, max_attempts: int = 2) -> dict:
+def _generate_and_critique(lesson_text: str, ex_type: str, focus: str, max_attempts: int = 2, topic: str = "") -> dict:
     """GENERATE -> CRITIQUE -> REVISE, bounded to max_attempts generations."""
     revise_note = ""
     exercise = _FALLBACK_EXERCISES[ex_type]
     for _ in range(max_attempts):
         exercise = llm.chat_json(
             prompts.COACH_EXERCISE_SYSTEM,
-            prompts.coach_exercise_user(lesson_text, ex_type, focus, revise_note),
+            prompts.coach_exercise_user(lesson_text, ex_type, focus, revise_note, topic),
             fallback=_FALLBACK_EXERCISES[ex_type],
         )
         exercise.setdefault("type", ex_type)

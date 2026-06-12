@@ -133,8 +133,13 @@ reorder:
 translation:
 {"type":"translation","instruction":"Translate to French:","prompt":"a short English sentence using lesson vocabulary","answer":"the French translation","explanation":"brief, encouraging explanation, noting an acceptable variant if there is one"}"""
 
-def coach_exercise_user(lesson_text: str, ex_type: str, focus: str, revise_note: str = "") -> str:
+def coach_exercise_user(lesson_text: str, ex_type: str, focus: str, revise_note: str = "", topic: str = "") -> str:
     base = f"Lesson notes:\n{lesson_text[:800]}\n\nExercise type: {ex_type}\nFocus: {focus}"
+    if topic.strip():
+        base += (
+            f"\n\nFocus topic requested by the learner: {topic.strip()}. "
+            f"Ground this exercise in that topic, using lesson vocabulary/grammar if it fits naturally."
+        )
     if revise_note:
         base += f"\n\nA reviewer flagged the previous attempt — please fix this and try again: {revise_note}"
     return base
