@@ -273,3 +273,25 @@ Every exercise type — Coach, Dialogue, Visual, and Pronunciation — now has a
 - **Verified via curl** against the rebuilt `app-custom` container: `/api/exercises/visual/sample` now returns 5 structured exercises (previously fell back to `exercises: []` until the `max_tokens` fix) with `image_summary`; `/api/exercises/coach/check` correctly grades a visual `vocabulary`-type exercise via its `content` field; `/api/exercises/pronunciation/target` with `topic: "ordering coffee at a café"` returns a phrase grounded in that topic. `npm run build` + `docker compose up -d --build app-custom` succeeded; served bundle hashes confirmed up to date.
 
 ---
+
+## Day 10 — 2026-06-15 — Live on Hugging Face Spaces (hackathon deadline day)
+
+### What changed (plain English)
+
+French Coach is now live at **https://build-small-hackathon-french-coach.hf.space** under the `build-small-hackathon` org. Open it in any browser and you'll see the full themed Gradio UI — notebook sidebar, gender-coloured text, word cards, chat coach, all four exercise types, and the daily summary — all powered by MiniCPM4.1-8B via the OpenBMB API. This is the hackathon submission build.
+
+### What changed (technical)
+
+- **`README.md`** — `app_file: app_custom.py` → `app_file: app.py` (Gradio Blocks UI as entry point). The React / FastAPI custom UI (`app_custom.py`) is preserved in the repo for post-hackathon use, but the Gradio Blocks UI is the correct HF `sdk: gradio` entry point: the HF runner imports the module, finds the `demo` variable, and calls `demo.launch()` itself — no port conflict.
+- **`app.py`** — Two HF Space compatibility fixes:
+  - `gr.LoginButton` + `gr.LogoutButton` removed: in Gradio 6, having a `LoginButton` triggers OAuth setup, which requires `hf_oauth: true` in Space metadata and the `OAUTH_CLIENT_ID` secret — neither configured. Their removal lets the app start cleanly.
+  - `css`, `theme`, `js` moved from `demo.launch()` args to the `gr.Blocks()` constructor: the HF SDK runner calls `demo.launch()` without our custom args, so the only way to guarantee the French-themed CSS and JS fire is to bake them into the `Blocks` object at definition time. Gradio 6 emits a `UserWarning` about this (they want them in `launch()`), but the warning does not prevent the app from loading.
+- **`llm.py`** — Removed `import spaces` and `@spaces.GPU` entirely from `llm.py` (they belonged in the HF `app_file` per ZeroGPU static scan rules). Added `register_gpu_fn(fn)` injection point so `app_custom.py` can wire in the GPU function without a circular import — ready for when we re-enable ZeroGPU hardware.
+- **`app_custom.py`** — Added `@spaces.GPU` function at the very top of the file (the correct location for ZeroGPU static scan), with a `try/except ImportError` so local dev works without the HF-pre-installed `spaces` package. Calls `llm.register_gpu_fn()` right after import to wire it in.
+- **`requirements.txt`** — Added `transformers>=4.40`, `accelerate>=0.30` (needed for the ZeroGPU model-load path; harmless on cpu-basic). `spaces` intentionally NOT added — HF pre-installs the real ZeroGPU `spaces` package; `pip install spaces` installs a different PyPI package that breaks the GPU function registration.
+- **Hardware / secrets** — Space changed from `zero-a10g` to `cpu-basic` (break-glass: avoids ZeroGPU startup check entirely). `LLM_BACKEND=openbmb` set as Space secret → text generation calls MiniCPM4.1-8B via the OpenBMB free API.
+- **Gotchas hit during this session:**
+  - ZeroGPU "No @spaces.GPU function detected during startup": fired even with `@spaces.GPU` in `llm.py`. Root cause: HF ZeroGPU static scan only inspects `app_file` (`app_custom.py`), not imported modules. Moving the decorator to `app_custom.py` was correct, but we still hit the port-conflict on `cpu-basic` (see below).
+  - "Address already in use 7860": with `sdk: gradio`, the HF runner starts its own server; our `uvicorn.run()` in `__main__` clashed. Fix: switch to `app.py` (demo-variable pattern) where the HF runner owns the server startup.
+  - `pip install spaces` installs a different PyPI `spaces` package that does not register functions with the real ZeroGPU system; removing it from `requirements.txt` unblocks ZeroGPU for future use.
+
