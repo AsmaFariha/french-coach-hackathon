@@ -1,6 +1,6 @@
 ---
 title: French Coach
-emoji: 🇫🇷
+emoji: 📓
 colorFrom: blue
 colorTo: red
 sdk: gradio
@@ -24,9 +24,8 @@ Built around **MiniCPM4.1-8B** (text) and **MiniCPM-V 4.6** (vision), both
 ## Entrypoint
 
 This Space runs `app_custom.py` (custom React UI, served at `/`, with
-`/api/...` JSON endpoints — see `frontend/API_CONTRACT.md`). It's still a
-Gradio-SDK app: a `gr.Blocks` object backs the `gr.Server` that the React
-build and API routes are mounted onto (see `UI_UPGRADE_PLAN.md` Phase 5).
+`/api/...` JSON endpoints). It's a Gradio-SDK app: a `gr.Blocks` object backs
+the `gr.Server` that the React build and API routes are mounted onto.
 
 The React build (`frontend/dist/`) is committed to the repo, since a
 Gradio-SDK Space build does not run `npm`. Rebuild and re-commit it whenever
