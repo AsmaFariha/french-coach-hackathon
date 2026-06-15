@@ -388,12 +388,12 @@ def _attach_routes(app):
 # routes into Gradio's own FastAPI app — one server, no port conflict.
 
 import gradio.routes as _gr_routes
-_orig_create_app = _gr_routes.App.create_app.__func__
+_orig_create_app = _gr_routes.App.create_app  # plain function in Gradio 6 (no __func__)
 
 
 @classmethod
 def _patched_create_app(cls, blocks, **kwargs):
-    app = _orig_create_app(cls, blocks, **kwargs)
+    app = _orig_create_app(blocks, **kwargs)
     _attach_routes(app)
     return app
 
@@ -402,7 +402,7 @@ _gr_routes.App.create_app = _patched_create_app
 
 
 # ── Gradio demo (the real Gradio interface — Off-Brand badge) ─────────────────
-with gr.Blocks(title="French Coach", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="French Coach") as demo:
     gr.Markdown(
         "## 🗼 French Coach\n\n"
         "The full app is at **[/](/)**. "
@@ -415,5 +415,5 @@ if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
         server_port=int(os.environ.get("PORT", 7860)),
-        show_api=False,
+        theme=gr.themes.Soft(),
     )
