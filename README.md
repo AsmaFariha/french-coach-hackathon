@@ -1,6 +1,6 @@
 ---
 title: French Coach
-emoji: 🇫🇷
+emoji: 🗼
 colorFrom: indigo
 colorTo: yellow
 sdk: gradio
@@ -9,16 +9,13 @@ app_file: app_custom.py
 pinned: true
 license: apache-2.0
 tags:
-  # ⚠️ REPLACE THESE with the EXACT strings the field-guide "Validate README"
-  # tool expects. The labels below are placeholders for the human-readable
-  # badges/track — the validator's strings may differ (e.g. backyard-ai).
   - build-small-hackathon
-  - backyard-ai            # main track (Backyard AI — "a personal study tutor")
-  - best-minicpm-build     # sponsor: built on MiniCPM (text + vision)
-  - off-brand              # custom gr.Server UI past default Gradio
-  - best-agent             # Coach Agent: multi-step plan->generate->critique->revise
-  - best-demo              # app + demo video + social post
-  - bonus-quest-champion   # most criteria met across the board
+  - backyard-ai
+  - best-minicpm-build
+  - off-brand
+  - best-agent
+  - best-demo
+  - bonus-quest-champion
 ---
 
 # 🇫🇷 French Coach
