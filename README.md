@@ -16,6 +16,11 @@ tags:
   - best-agent
   - best-demo
   - bonus-quest-champion
+  - track:backyard
+  - sponsor:openbmb
+  - achievement:offgrid
+  - achievement:offbrand
+  - achievement:fieldnotes
 ---
 
 # 🇫🇷 French Coach
