@@ -844,7 +844,7 @@ PAGE_JS = """
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
-with gr.Blocks(title="French Coach") as demo:
+with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS) as demo:
 
     # Shared state
     user_id_state       = gr.State(None)
@@ -865,11 +865,6 @@ with gr.Blocks(title="French Coach") as demo:
             )
         with gr.Column(scale=1, min_width=180):
             user_display = gr.Markdown(visible=False)
-        if IS_SPACE:
-            with gr.Column(scale=0, min_width=130):
-                gr.LoginButton(min_width=120)
-            with gr.Column(scale=0, min_width=110):
-                gr.LogoutButton(min_width=100)
     gr.HTML('<div class="fc-tricolor-bar"></div>')
 
     # ── Tabs ─────────────────────────────────────────────────────────────────
@@ -1164,4 +1159,4 @@ with gr.Blocks(title="French Coach") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", js=PAGE_JS, css=CUSTOM_CSS, theme=FC_THEME)
+    demo.launch(server_name="0.0.0.0")

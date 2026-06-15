@@ -10,19 +10,18 @@ Vision always uses the OpenBMB vision endpoint (MiniCPM-V not yet on HF Inferenc
 import os
 import json
 import logging
+import re
+import time
 from dotenv import load_dotenv
 import prompts
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-BACKEND  = os.environ.get("LLM_BACKEND", "huggingface_inference")
-# openbmb/MiniCPM4.1-8B-Instruct is the hackathon-prize target for ZeroGPU deploy.
-# On the free HF Inference serverless tier it returns "Bad request" — confirmed.
-# Qwen/Qwen2.5-7B-Instruct is the reliable fallback for local dev + InferenceClient.
-HF_MODEL         = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+BACKEND           = os.environ.get("LLM_BACKEND", "huggingface_inference")
+HF_MODEL          = os.environ.get("HF_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 HF_FALLBACK_MODEL = os.environ.get("HF_FALLBACK_MODEL", "Qwen/Qwen2.5-7B-Instruct")
-HF_TOKEN         = os.environ.get("HF_TOKEN")
+HF_TOKEN          = os.environ.get("HF_TOKEN")
 
 # ── Backend 1: HF InferenceClient (local dev) ─────────────────────────────────
 
@@ -36,7 +35,7 @@ def _hf(model: str):
 
 
 def _hf_call(model: str, messages: list[dict], stream: bool, max_tokens: int):
-    """Single attempt against one model. Raises on any error."""
+    """Single attempt. Raises on any error including empty content."""
     resp = _hf(model).chat_completion(
         messages=messages, max_tokens=max_tokens,
         stream=stream, temperature=0.7,
@@ -48,12 +47,15 @@ def _hf_call(model: str, messages: list[dict], stream: bool, max_tokens: int):
                 if delta:
                     yield delta
         return _gen()
-    return resp.choices[0].message.content or ""
+    content = resp.choices[0].message.content
+    if not content:
+        raise ValueError("empty completion from model")
+    return content
 
 
 def _hf_chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
-    """Try HF_MODEL; if it fails, try HF_FALLBACK_MODEL; then return mock."""
-    models = list(dict.fromkeys([HF_MODEL, HF_FALLBACK_MODEL]))  # deduplicate, keep order
+    """Try HF_MODEL; if it fails, try HF_FALLBACK_MODEL; then return error msg."""
+    models = list(dict.fromkeys([HF_MODEL, HF_FALLBACK_MODEL]))
     last_err = None
     for model in models:
         try:
@@ -67,53 +69,22 @@ def _hf_chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
 
 
 # ── Backend 2: ZeroGPU (HF Space deploy only) ────────────────────────────────
-# The @spaces.GPU decorator must be applied at module load time, so we try to
-# set it up eagerly when BACKEND=zerogpu. On local dev this import will fail
-# gracefully and we fall back to openbmb.
+# The @spaces.GPU function lives in app_custom.py (the HF app_file) because
+# the ZeroGPU static scan only inspects app_file, not imported modules.
+# app_custom.py calls register_gpu_fn() at startup to wire it in.
 
 _zerogpu_fn = None
 
-if BACKEND == "zerogpu":
-    try:
-        import spaces                                          # only on HF Space
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        _zgpu_tok   = None
-        _zgpu_model = None
-
-        @spaces.GPU
-        def _zgpu_generate(messages_json: str, max_tokens: int) -> str:
-            """Runs on GPU. messages_json is JSON string to avoid pickling issues."""
-            global _zgpu_tok, _zgpu_model
-            if _zgpu_model is None:
-                _zgpu_tok   = AutoTokenizer.from_pretrained(HF_MODEL, trust_remote_code=True)
-                _zgpu_model = AutoModelForCausalLM.from_pretrained(
-                    HF_MODEL, trust_remote_code=True,
-                    torch_dtype=torch.bfloat16,
-                ).eval()
-            msgs    = json.loads(messages_json)
-            text    = _zgpu_tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-            inputs  = _zgpu_tok(text, return_tensors="pt").to(_zgpu_model.device)
-            with torch.no_grad():
-                out = _zgpu_model.generate(
-                    **inputs, max_new_tokens=max_tokens,
-                    do_sample=True, temperature=0.7,
-                )
-            return _zgpu_tok.decode(
-                out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True
-            )
-
-        _zerogpu_fn = _zgpu_generate
-        logger.info("ZeroGPU backend initialised for model %s", HF_MODEL)
-
-    except ImportError as e:
-        logger.warning("ZeroGPU setup failed (not on HF Space?): %s — falling back to openbmb", e)
+def register_gpu_fn(fn):
+    """Called by app_custom.py to inject the @spaces.GPU generate function."""
+    global _zerogpu_fn
+    _zerogpu_fn = fn
+    logger.info("ZeroGPU generate function registered: %s", fn.__name__)
 
 
 def _zerogpu_chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
     if _zerogpu_fn is None:
-        # Graceful fallback when not on a Space
         return _openbmb_chat(messages, stream, max_tokens)
     try:
         result = _zerogpu_fn(json.dumps(messages), max_tokens)
@@ -126,7 +97,7 @@ def _zerogpu_chat(messages: list[dict], stream: bool = False, max_tokens: int = 
         return (x for x in [msg]) if stream else msg
 
 
-# ── Backend 3: OpenBMB legacy (original free API) ─────────────────────────────
+# ── Backend 3: OpenBMB free API ───────────────────────────────────────────────
 
 _openbmb_text_client = None
 
@@ -174,20 +145,58 @@ def chat(messages: list[dict], stream: bool = False, max_tokens: int = 512):
         return _openbmb_chat(messages, stream, max_tokens)
 
 
-def chat_json(system: str, user: str, fallback: dict | None = None, max_tokens: int = 512) -> dict:
-    """Call LLM and parse JSON response. Returns fallback dict on any error."""
-    raw = chat([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=max_tokens)
-    if isinstance(raw, str) and raw.startswith("⚠"):
-        return fallback or {}
+def _try_parse_json(raw: str) -> dict | None:
+    """Try several strategies to extract a JSON dict from an LLM response."""
+    text = raw.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1].lstrip("json").strip() if len(parts) > 1 else text
+
     try:
-        text = raw.strip()
-        if text.startswith("```"):
-            parts = text.split("```")
-            text  = parts[1].lstrip("json").strip() if len(parts) > 1 else text
-        return json.loads(text)
-    except Exception as e:
-        logger.error("JSON parse error: %s\nRaw: %.200s", e, raw)
-        return fallback or {}
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+    except Exception:
+        pass
+
+    m = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+    if m:
+        try:
+            result = json.loads(m.group())
+            if isinstance(result, dict):
+                return result
+        except Exception:
+            pass
+
+    result = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if ":" in line:
+            k, _, v = line.partition(":")
+            k = k.strip().strip('"').strip("'")
+            v = v.strip().strip('"').strip("'")
+            if k and v:
+                result[k] = v
+    if len(result) >= 1:
+        return result
+
+    return None
+
+
+def chat_json(system: str, user: str, fallback: dict | None = None, max_tokens: int = 512) -> dict:
+    """Call LLM and parse JSON response. Retries once on failure."""
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    for attempt in range(2):
+        if attempt > 0:
+            time.sleep(1.5)
+        raw = chat(messages, max_tokens=max_tokens)
+        if isinstance(raw, str) and raw.startswith("⚠"):
+            continue
+        result = _try_parse_json(raw)
+        if result is not None:
+            return result
+        logger.error("JSON parse error (attempt %d)\nRaw: %.300s", attempt + 1, raw)
+    return fallback or {}
 
 
 # ── Vision (stays on OpenBMB — MiniCPM-V not yet on HF Inference) ─────────────

@@ -1,37 +1,77 @@
 """
-Custom-UI entrypoint (UI_UPGRADE_PLAN.md Phase 2+). Phase 5: this is the
-Gradio Space entrypoint (see root README.md front matter `app_file`).
+Custom-UI entrypoint (HF Space: app_file in README.md, sdk: gradio).
 
-Serves the React frontend (built to `frontend/dist/`) as static assets and
-exposes the backend (db, nlp, llm, exercises, gamify) as a small JSON API
-under `/api/...` — all attached to the same Gradio app object (`gr.Server`)
-returned by `demo.launch(prevent_thread_lock=True)`, so the process stays a
-Gradio-SDK app (see UI_UPGRADE_PLAN.md CONSTRAINT section).
+Architecture:
+  main_app (FastAPI, controls ALL routing)
+    /              → React index.html
+    /custom/       → React static assets (JS, CSS, images)
+    /api/*         → JSON backend routes
+    /gradio/       → Gradio Blocks (mounted for HF SDK eligibility)
 
-- `/` serves the React build's index.html directly. Gradio's default Blocks
-  "/" route (registered by demo.launch() below) is dropped at startup to make
-  room for it; the Blocks object below exists only to give us a gr.Server app
-  to attach routes to.
-- The React build is ALSO served at `/custom` (StaticFiles, html=True), per
-  frontend/README.md's dev workflow.
-- `/api/...` routes implement frontend/API_CONTRACT.md.
-
-Does NOT modify app.py, which remains the themed-Blocks fallback entrypoint
-(see root README.md "Reverting" note). Defaults to the standard Gradio port
-(7860); local Docker Compose overrides CUSTOM_UI_PORT=7861 so it can run
-alongside app.py on 7860.
+Import order for ZeroGPU (critical):
+  1. spaces   — intercepts CUDA before anything else touches it
+  2. @spaces.GPU defined HERE in app_file (ZeroGPU static scan only checks app_file)
+  3. llm      — wired via register_gpu_fn() so it can call the GPU function
+  4. gradio   — safe after spaces is set up
 """
+
+# ── ZeroGPU setup — MUST be at the very top of app_file ─────────────────────
+# The HF ZeroGPU infrastructure pre-installs 'spaces'; we must NOT add it to
+# requirements.txt (pip would install a different PyPI package that doesn't
+# register functions with the real ZeroGPU system).
+# On local dev, spaces is absent — we provide a no-op decorator so the rest
+# of the file runs unchanged.
+
+try:
+    import spaces  # HF pre-installs the real one on ZeroGPU Spaces
+except ImportError:
+    class spaces:  # noqa: N801 — no-op stand-in for local dev
+        @staticmethod
+        def GPU(fn):
+            return fn
+
+_zgpu_tok   = None
+_zgpu_model = None
+
+
+@spaces.GPU
+def _zgpu_generate(messages_json: str, max_tokens: int) -> str:
+    """ZeroGPU text generation — lazy model load on first GPU call."""
+    import torch  # noqa: PLC0415
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: PLC0415
+    import json as _json, os as _os  # noqa: PLC0415
+    global _zgpu_tok, _zgpu_model
+    hf_model = _os.environ.get("HF_MODEL", "openbmb/MiniCPM4-8B")
+    if _zgpu_model is None:
+        _zgpu_tok   = AutoTokenizer.from_pretrained(hf_model, trust_remote_code=True)
+        _zgpu_model = AutoModelForCausalLM.from_pretrained(
+            hf_model, trust_remote_code=True, torch_dtype=torch.bfloat16,
+        ).eval()
+    msgs   = _json.loads(messages_json)
+    text   = _zgpu_tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+    inputs = _zgpu_tok(text, return_tensors="pt").to(_zgpu_model.device)
+    with torch.no_grad():
+        out = _zgpu_model.generate(
+            **inputs, max_new_tokens=min(max_tokens, 400),
+            do_sample=True, temperature=0.7,
+        )
+    return _zgpu_tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+
+
+# ── Other imports (after spaces) ─────────────────────────────────────────────
+import llm
+llm.register_gpu_fn(_zgpu_generate)  # wire the GPU function into the llm router
+
 import json
 import os
 
 from dotenv import load_dotenv
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import gradio as gr
 
 import nlp
-import llm
 import prompts
 import notebook as nb
 import exercises as ex
@@ -51,19 +91,21 @@ def _pron_target_html(target: dict) -> str:
         f'<div style="font-size:1.4rem;font-family:Georgia,serif;margin-bottom:8px">'
         f'🎯 <strong>{target.get("phrase","")}</strong></div>'
         f'<div style="color:#666;margin-bottom:6px">{target.get("translation","")}</div>'
-        f'<div style="color:#888;font-size:0.85rem;font-style:italic">💡 {target.get("tip","")}</div>'
+        f'<div style="color:#888;font-size:0.85rem">{target.get("tip","")}</div>'
         f'</div>'
     )
 
 
 def _pron_feedback_html(fb_data: dict) -> str:
+    score = fb_data.get("score", 0)
+    color = "#2d8a4e" if score >= 80 else "#d97706" if score >= 50 else "#dc2626"
     return (
-        f'<div style="border-left:4px solid #2e7d32;padding:12px 16px;'
-        f'background:#2e7d3211;border-radius:0 8px 8px 0">'
-        f'<div style="font-weight:600;margin-bottom:6px">🌟 {fb_data.get("feedback","")}</div>'
-        f'<div style="font-size:0.9rem;color:#555">Focus: {fb_data.get("focus","")}</div>'
-        f'<div style="font-size:0.9rem;color:#555">Tip: {fb_data.get("tip","")}</div>'
-        f'</div>'
+        f'<div style="border-left:4px solid {color};padding:10px 14px;'
+        f'background:{color}1A;border-radius:0 8px 8px 0;font-size:0.92rem">'
+        f'<strong>{score}/100</strong> — {fb_data.get("feedback","")}'
+        + (f'<br><span style="color:{color};font-style:italic">💡 {fb_data.get("correction","")}</span>'
+           if fb_data.get("correction") else "")
+        + '</div>'
     )
 
 
@@ -88,323 +130,287 @@ def _domain(url: str) -> str:
         return url
 
 
-# A near-empty Blocks app — its only job is to give us a Gradio app object
-# (gr.Server) to attach the custom routes onto, so the entrypoint stays Gradio.
-with gr.Blocks(title="French Coach — Custom UI (dev)") as demo:
+# ── Gradio demo (for HF SDK eligibility — mounted at /gradio) ────────────────
+
+with gr.Blocks(title="French Coach") as demo:
     gr.Markdown(
-        "## French Coach — custom UI\n\n"
-        "This Blocks tab exists only so a Gradio app object (`gr.Server`) is "
-        "available to mount the React build and the `/api/...` routes on. "
-        "Since Phase 5, the React build is served at `/` (the Space "
-        "entrypoint) — this tab itself isn't reachable."
-    )
-    gr.HTML('<a href="/custom/" target="_blank">Open the custom UI (dev URL) →</a>')
-
-
-if __name__ == "__main__":
-    app, local_url, share_url = demo.launch(
-        server_name="0.0.0.0",
-        server_port=int(os.environ.get("CUSTOM_UI_PORT", 7860)),
-        prevent_thread_lock=True,
+        "## French Coach\n\n"
+        "The app is at **[/](/)**. This Gradio tab exists for HF SDK eligibility."
     )
 
-    # ── Lessons ──────────────────────────────────────────────────────────────
 
-    @app.get("/api/lessons")
-    def api_list_lessons():
-        pages = nb.list_pages(USER_ID)
-        pages = [p for p in pages if p.get("page_type") != "resource"]
-        return {"lessons": pages}
+# ── Main FastAPI app — owns all routing ──────────────────────────────────────
 
-    @app.get("/api/lessons/{page_id}")
-    def api_get_lesson(page_id: str):
-        page = nb.get_page(page_id, USER_ID)
-        if not page:
-            raise HTTPException(status_code=404, detail="not found")
-        ann = page.get("annotations") or {}
-        if isinstance(ann, str):
-            ann = json.loads(ann)
-        return {"id": page["id"], "title": page["title"], "raw_text": page["raw_text"], "annotations": ann}
+main_app = FastAPI(title="French Coach")
 
-    @app.post("/api/lessons")
-    async def api_save_lesson(payload: dict):
-        text = (payload.get("text") or "").strip()
-        if not text:
-            raise HTTPException(status_code=400, detail="text is required")
-        ann = payload.get("annotations") or {}
-        page_id, title = nb.save_page(USER_ID, payload.get("text", ""), ann)
-        gamify.add_points(USER_ID, "saved_lesson")
-        return {"id": page_id, "title": title}
+# React frontend at /
+if os.path.isdir(FRONTEND_DIST):
+    with open(os.path.join(FRONTEND_DIST, "index.html"), encoding="utf-8") as _f:
+        _index_html = _f.read()
 
-    @app.put("/api/lessons/{page_id}")
-    async def api_update_lesson(page_id: str, payload: dict):
-        text = (payload.get("text") or "").strip()
-        if not text:
-            raise HTTPException(status_code=400, detail="text is required")
-        ann = payload.get("annotations") or {}
-        title = nb.update_page(page_id, USER_ID, payload.get("text", ""), ann)
-        return {"title": title}
+    @main_app.get("/", response_class=HTMLResponse)
+    @main_app.head("/", response_class=HTMLResponse)
+    def frontend_root():
+        return _index_html
 
-    @app.patch("/api/lessons/{page_id}/title")
-    async def api_rename_lesson(page_id: str, payload: dict):
-        title = (payload.get("title") or "").strip()
-        if not title:
-            raise HTTPException(status_code=400, detail="title is required")
-        new_title = nb.update_title(page_id, USER_ID, title)
-        return {"title": new_title}
+    main_app.mount("/custom", StaticFiles(directory=FRONTEND_DIST, html=True), name="custom-ui")
 
-    @app.delete("/api/lessons/{page_id}")
-    def api_delete_lesson(page_id: str):
-        deleted = nb.delete_page(page_id, USER_ID)
-        return {"deleted": deleted}
+# Mount Gradio at /gradio (before API routes — Gradio handles its own sub-paths)
+main_app = gr.mount_gradio_app(main_app, demo, path="/gradio")
 
-    # ── Resources ────────────────────────────────────────────────────────────
+# ── API routes ───────────────────────────────────────────────────────────────
 
-    @app.get("/api/resources")
-    def api_resources():
-        pages = nb.list_resources(USER_ID)
-        out = []
-        for page in pages:
-            links = page.get("links") or []
-            books = page.get("books") or []
-            if not links and not books:
-                continue
-            out.append({
-                "id": page["id"],
-                "title": page.get("title") or "Resources",
-                "links": [
-                    {"url": l.get("url", ""), "label": l.get("label") or l.get("url", ""),
-                     "domain": _domain(l.get("url", ""))}
-                    for l in links
-                ],
-                "books": [
-                    {"title": b.get("title", ""), "author": b.get("author", ""), "note": b.get("note", "")}
-                    for b in books
-                ],
-            })
-        return {"resources": out}
+@main_app.get("/api/lessons")
+def api_list_lessons():
+    pages = nb.list_pages(USER_ID)
+    pages = [p for p in pages if p.get("page_type") != "resource"]
+    return {"lessons": pages}
 
-    # ── Annotation / word card ───────────────────────────────────────────────
 
-    @app.post("/api/annotate")
-    async def api_annotate(payload: dict):
-        text = payload.get("text", "")
-        colors_on = bool(payload.get("colors_on", True))
-        ann = nlp.annotate(text)
-        html = nlp.render_html(ann, colors_on)
-        return {"html": html, "tokens": ann.get("tokens", []), "meanings": ann.get("meanings", {})}
+@main_app.get("/api/lessons/{page_id}")
+def api_get_lesson(page_id: str):
+    page = nb.get_page(page_id, USER_ID)
+    if not page:
+        raise HTTPException(status_code=404, detail="not found")
+    ann = page.get("annotations") or {}
+    if isinstance(ann, str):
+        ann = json.loads(ann)
+    return {"id": page["id"], "title": page["title"],
+            "raw_text": page["raw_text"], "annotations": ann}
 
-    @app.post("/api/render")
-    async def api_render(payload: dict):
-        """Re-render cached annotations (no spaCy/LLM calls) — used when loading
-        a saved lesson or toggling gender colors, so cached word-card meanings
-        in `annotations.meanings` survive."""
-        ann = payload.get("annotations") or {"tokens": [], "meanings": {}}
-        colors_on = bool(payload.get("colors_on", True))
-        return {"html": nlp.render_html(ann, colors_on)}
 
-    @app.post("/api/word-card")
-    async def api_word_card(payload: dict):
-        text = payload.get("text", "")
-        lemma = payload.get("lemma") or text
-        pos = payload.get("pos", "")
-        gender = payload.get("gender") or ""
-        meanings = dict(payload.get("meanings") or {})
+@main_app.post("/api/lessons")
+async def api_save_lesson(payload: dict):
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    ann = payload.get("annotations") or {}
+    page_id, title = nb.save_page(USER_ID, payload.get("text", ""), ann)
+    gamify.add_points(USER_ID, "saved_lesson")
+    return {"id": page_id, "title": title}
 
-        cache_key = lemma or text
-        if cache_key not in meanings:
-            meanings[cache_key] = llm.get_word_meaning(text, lemma, pos, gender)
-            try:
-                gamify.add_points(USER_ID, "word_explored")
-            except Exception:
-                pass
 
-        data = meanings[cache_key]
-        return {
-            "text": text, "lemma": lemma, "pos": pos, "gender": gender,
-            "meaning": data.get("meaning", ""), "grammar": data.get("grammar", ""),
-            "meanings": meanings,
-        }
+@main_app.put("/api/lessons/{page_id}")
+async def api_update_lesson(page_id: str, payload: dict):
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    ann = payload.get("annotations") or {}
+    title = nb.update_page(page_id, USER_ID, payload.get("text", ""), ann)
+    return {"title": title}
 
-    # ── Gender Checker (Day 5) ───────────────────────────────────────────────
 
-    @app.post("/api/gender-check")
-    async def api_gender_check(payload: dict):
-        word = (payload.get("word") or "").strip()
-        if not word:
-            raise HTTPException(status_code=400, detail="word is required")
-        info = nlp.word_info(word)
-        extra = llm.get_gender_check(info["word"], info.get("pos") or "")
-        return {**info, **extra}
+@main_app.patch("/api/lessons/{page_id}/title")
+async def api_rename_lesson(page_id: str, payload: dict):
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    new_title = nb.update_title(page_id, USER_ID, title)
+    return {"title": new_title}
 
-    # ── Translator (Day 5) ───────────────────────────────────────────────────
 
-    @app.post("/api/translate")
-    async def api_translate(payload: dict):
-        text = (payload.get("text") or "").strip()
-        if not text:
-            raise HTTPException(status_code=400, detail="text is required")
-        direction = payload.get("direction") or "auto"
-        lesson_text = payload.get("lesson_text") or ""
-        return llm.translate_text(text, direction, lesson_text)
+@main_app.delete("/api/lessons/{page_id}")
+def api_delete_lesson(page_id: str):
+    deleted = nb.delete_page(page_id, USER_ID)
+    return {"deleted": deleted}
 
-    # ── Chat ─────────────────────────────────────────────────────────────────
 
-    @app.post("/api/chat")
-    async def api_chat(payload: dict):
-        message = (payload.get("message") or "").strip()
-        if not message:
-            raise HTTPException(status_code=400, detail="message is required")
-        history = payload.get("history") or []
-        lesson_text = payload.get("lesson_text") or ""
+@main_app.get("/api/resources")
+def api_resources():
+    pages = nb.list_resources(USER_ID)
+    out = []
+    for page in pages:
+        links = page.get("links") or []
+        books = page.get("books") or []
+        if not links and not books:
+            continue
+        out.append({
+            "id": page["id"],
+            "title": page.get("title") or "Resources",
+            "links": [{"url": l.get("url", ""), "label": l.get("label") or l.get("url", ""),
+                       "domain": _domain(l.get("url", ""))} for l in links],
+            "books": [{"title": b.get("title", ""), "author": b.get("author", ""),
+                       "note": b.get("note", "")} for b in books],
+        })
+    return {"resources": out}
 
-        system = prompts.CHAT_SYSTEM
-        if lesson_text.strip():
-            system += f"\n\nCurrent lesson context:\n{lesson_text[:500]}"
 
-        messages = [{"role": "system", "content": system}]
-        for item in history:
-            if item.get("role") in ("user", "assistant") and item.get("content"):
-                messages.append({"role": item["role"], "content": item["content"]})
-        messages.append({"role": "user", "content": message})
+@main_app.post("/api/annotate")
+async def api_annotate(payload: dict):
+    text = payload.get("text", "")
+    colors_on = bool(payload.get("colors_on", True))
+    ann = nlp.annotate(text)
+    html = nlp.render_html(ann, colors_on)
+    return {"html": html, "tokens": ann.get("tokens", []), "meanings": ann.get("meanings", {})}
 
-        reply = llm.chat(messages, stream=False, max_tokens=600)
-        return {"reply": reply}
 
-    # ── Coach Agent: mixed exercise set ─────────────────────────────────────
+@main_app.post("/api/render")
+async def api_render(payload: dict):
+    ann = payload.get("annotations") or {"tokens": [], "meanings": {}}
+    colors_on = bool(payload.get("colors_on", True))
+    return {"html": nlp.render_html(ann, colors_on)}
 
-    @app.post("/api/exercises/coach")
-    async def api_exercise_coach(payload: dict):
-        lesson_text = payload.get("lesson_text") or ""
-        page_id = payload.get("page_id")
-        topic = (payload.get("topic") or "").strip()
-        result = ex.generate_exercise_set(lesson_text, USER_ID, page_id, topic)
-        return result
 
-    @app.post("/api/exercises/coach/check")
-    async def api_exercise_coach_check(payload: dict):
-        exercise = payload.get("exercise") or {}
-        answer = payload.get("answer") or ""
-        return ex.check_coach_exercise(exercise, answer, USER_ID)
-
-    # ── Dialogue ─────────────────────────────────────────────────────────────
-
-    @app.post("/api/exercises/dialogue")
-    async def api_exercise_dialogue(payload: dict):
-        lesson_text = payload.get("lesson_text") or ""
-        topic = (payload.get("topic") or "").strip()
-        dialogue = ex.generate_dialogue(lesson_text, USER_ID, topic)
-        hint = ex.get_next_user_hint(dialogue, 0)
-        transcript_html = ex.render_dialogue(dialogue, [])
-        return {"dialogue": dialogue, "replies": [], "hint": f"Your turn: {hint}", "transcript_html": transcript_html}
-
-    @app.post("/api/exercises/dialogue/reply")
-    async def api_exercise_dialogue_reply(payload: dict):
-        dialogue = payload.get("dialogue") or {}
-        replies = list(payload.get("replies") or [])
-        reply = (payload.get("reply") or "").strip()
-        if not reply:
-            raise HTTPException(status_code=400, detail="reply is required")
-
-        hint = ex.get_next_user_hint(dialogue, len(replies))
-        fb_data = ex.dialogue_feedback(reply, hint, dialogue.get("scene", ""), USER_ID)
-        feedback_html = _dialogue_feedback_html(fb_data)
-
-        replies.append(reply)
-        transcript_html = ex.render_dialogue(dialogue, replies)
-
-        next_hint = ex.get_next_user_hint(dialogue, len(replies))
-        hint_text = f"Your turn: {next_hint}" if next_hint else "🎉 Dialogue complete! Great work!"
-
-        return {"replies": replies, "transcript_html": transcript_html, "hint": hint_text, "feedback_html": feedback_html}
-
-    # ── Visual exercise ──────────────────────────────────────────────────────
-
-    @app.post("/api/exercises/visual/sample")
-    async def api_exercise_visual_sample(payload: dict):
-        """Matched-image visual exercise (Day 4): no upload needed — pick a
-        pre-generated image for this lesson's topic and build exercises from
-        its description. An optional learner-chosen `topic` can steer both
-        the image picked and the exercises generated from it."""
-        lesson_text = payload.get("lesson_text") or ""
-        topic = (payload.get("topic") or "").strip()
-
-        image_topic = nlp.detect_category(topic) if topic else "General"
-        if image_topic == "General":
-            image_topic = nlp.detect_category(lesson_text) if lesson_text.strip() else "Daily Life"
-
-        image = ex.pick_sample_image(image_topic, USER_ID)
-        if not image:
-            raise HTTPException(status_code=404, detail="no sample images available")
-        result = ex.generate_visual_topic_exercise(image, lesson_text, USER_ID, topic)
-        gamify.add_points(USER_ID, "photo_exercise")
-        return {
-            "image_url": f"/custom/sample_images/{image['filename']}",
-            "topic": image_topic,
-            "image_summary": result.get("image_summary", ""),
-            "exercises": result.get("exercises", []),
-        }
-
-    # ── Pronunciation ────────────────────────────────────────────────────────
-
-    @app.post("/api/exercises/pronunciation/target")
-    async def api_pron_target(payload: dict):
-        lesson_text = payload.get("lesson_text") or ""
-        topic = (payload.get("topic") or "").strip()
-        target = ex.generate_pronunciation_target(lesson_text, topic)
-        return {"target": target, "html": _pron_target_html(target)}
-
-    @app.post("/api/exercises/pronunciation/check")
-    async def api_pron_check(payload: dict):
-        target = payload.get("target") or {}
-        transcription = (payload.get("transcription") or "").strip()
-        if not transcription:
-            raise HTTPException(status_code=400, detail="transcription is required")
-        fb_data = ex.get_pronunciation_feedback(target.get("phrase", ""), transcription)
-        gamify.add_points(USER_ID, "pronunciation")
-        return {"html": _pron_feedback_html(fb_data)}
-
-    # ── Summary ──────────────────────────────────────────────────────────────
-
-    @app.get("/api/summary")
-    def api_summary():
+@main_app.post("/api/word-card")
+async def api_word_card(payload: dict):
+    text = payload.get("text", "")
+    lemma = payload.get("lemma") or text
+    pos = payload.get("pos", "")
+    gender = payload.get("gender") or ""
+    meanings = dict(payload.get("meanings") or {})
+    cache_key = lemma or text
+    if cache_key not in meanings:
+        meanings[cache_key] = llm.get_word_meaning(text, lemma, pos, gender)
         try:
-            gamify.try_daily_open(USER_ID)
+            gamify.add_points(USER_ID, "word_explored")
         except Exception:
             pass
-        summary = gamify.get_daily_summary(USER_ID)
-        total = gamify.get_total_points(USER_ID)
-        daily_stats = gamify.get_daily_stats(USER_ID)
-        concepts = gamify.get_concepts_progress()
-        return {"summary": summary, "total_points": total, "daily_stats": daily_stats, "concepts": concepts}
+    data = meanings[cache_key]
+    return {"text": text, "lemma": lemma, "pos": pos, "gender": gender,
+            "meaning": data.get("meaning", ""), "grammar": data.get("grammar", ""),
+            "meanings": meanings}
 
-    # ── React build, served at / (Space root, Phase 5) and /custom ──────────
-    # `/` is the Space entrypoint: drop Gradio's default Blocks "/" route(s)
-    # (registered by demo.launch() above) and serve the built index.html in
-    # their place. That file's asset URLs are rooted at /custom/ (see
-    # vite.config.js `base`), which the StaticFiles mount below continues to
-    # serve, so no assets need duplicating. /custom/ is kept too, for the dev
-    # workflow described in frontend/README.md.
 
-    if os.path.isdir(FRONTEND_DIST):
-        with open(os.path.join(FRONTEND_DIST, "index.html"), encoding="utf-8") as f:
-            _index_html = f.read()
+@main_app.post("/api/gender-check")
+async def api_gender_check(payload: dict):
+    word = (payload.get("word") or "").strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="word is required")
+    info = nlp.word_info(word)
+    extra = llm.get_gender_check(info["word"], info.get("pos") or "")
+    return {**info, **extra}
 
-        app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/"]
 
-        @app.get("/", response_class=HTMLResponse)
-        @app.head("/", response_class=HTMLResponse)
-        def custom_ui_root():
-            return _index_html
+@main_app.post("/api/translate")
+async def api_translate(payload: dict):
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    direction = payload.get("direction") or "auto"
+    lesson_text = payload.get("lesson_text") or ""
+    return llm.translate_text(text, direction, lesson_text)
 
-        app.mount("/custom", StaticFiles(directory=FRONTEND_DIST, html=True), name="custom-ui")
-    else:
-        @app.get("/custom", response_class=HTMLResponse)
-        def custom_placeholder():
-            return (
-                "<h1>Frontend not built yet</h1>"
-                "<p>Run <code>cd frontend && npm install && npm run build</code>, "
-                "then restart this server.</p>"
-            )
 
-    demo.block_thread()
+@main_app.post("/api/chat")
+async def api_chat(payload: dict):
+    message = (payload.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+    history = payload.get("history") or []
+    lesson_text = payload.get("lesson_text") or ""
+    system = prompts.CHAT_SYSTEM
+    if lesson_text.strip():
+        system += f"\n\nCurrent lesson context:\n{lesson_text[:500]}"
+    messages = [{"role": "system", "content": system}]
+    for item in history:
+        if item.get("role") in ("user", "assistant") and item.get("content"):
+            messages.append({"role": item["role"], "content": item["content"]})
+    messages.append({"role": "user", "content": message})
+    reply = llm.chat(messages, stream=False, max_tokens=600)
+    return {"reply": reply}
+
+
+@main_app.post("/api/exercises/coach")
+async def api_exercise_coach(payload: dict):
+    lesson_text = payload.get("lesson_text") or ""
+    page_id = payload.get("page_id")
+    topic = (payload.get("topic") or "").strip()
+    return ex.generate_exercise_set(lesson_text, USER_ID, page_id, topic)
+
+
+@main_app.post("/api/exercises/coach/check")
+async def api_exercise_coach_check(payload: dict):
+    exercise = payload.get("exercise") or {}
+    answer = payload.get("answer") or ""
+    return ex.check_coach_exercise(exercise, answer, USER_ID)
+
+
+@main_app.post("/api/exercises/dialogue")
+async def api_exercise_dialogue(payload: dict):
+    lesson_text = payload.get("lesson_text") or ""
+    topic = (payload.get("topic") or "").strip()
+    dialogue = ex.generate_dialogue(lesson_text, USER_ID, topic)
+    hint = ex.get_next_user_hint(dialogue, 0)
+    transcript_html = ex.render_dialogue(dialogue, [])
+    return {"dialogue": dialogue, "replies": [], "hint": f"Your turn: {hint}",
+            "transcript_html": transcript_html}
+
+
+@main_app.post("/api/exercises/dialogue/reply")
+async def api_exercise_dialogue_reply(payload: dict):
+    dialogue = payload.get("dialogue") or {}
+    replies = list(payload.get("replies") or [])
+    reply = (payload.get("reply") or "").strip()
+    if not reply:
+        raise HTTPException(status_code=400, detail="reply is required")
+    hint = ex.get_next_user_hint(dialogue, len(replies))
+    fb_data = ex.dialogue_feedback(reply, hint, dialogue.get("scene", ""), USER_ID)
+    feedback_html = _dialogue_feedback_html(fb_data)
+    replies.append(reply)
+    transcript_html = ex.render_dialogue(dialogue, replies)
+    next_hint = ex.get_next_user_hint(dialogue, len(replies))
+    hint_text = f"Your turn: {next_hint}" if next_hint else "🎉 Dialogue complete! Great work!"
+    return {"replies": replies, "transcript_html": transcript_html,
+            "hint": hint_text, "feedback_html": feedback_html}
+
+
+@main_app.post("/api/exercises/visual/sample")
+async def api_exercise_visual_sample(payload: dict):
+    lesson_text = payload.get("lesson_text") or ""
+    topic = (payload.get("topic") or "").strip()
+    image_topic = nlp.detect_category(topic) if topic else "General"
+    if image_topic == "General":
+        image_topic = nlp.detect_category(lesson_text) if lesson_text.strip() else "Daily Life"
+    image = ex.pick_sample_image(image_topic, USER_ID)
+    if not image:
+        raise HTTPException(status_code=404, detail="no sample images available")
+    result = ex.generate_visual_topic_exercise(image, lesson_text, USER_ID, topic)
+    gamify.add_points(USER_ID, "photo_exercise")
+    return {"image_url": f"/custom/sample_images/{image['filename']}", "topic": image_topic,
+            "image_summary": result.get("image_summary", ""), "exercises": result.get("exercises", [])}
+
+
+@main_app.post("/api/exercises/pronunciation/target")
+async def api_pron_target(payload: dict):
+    lesson_text = payload.get("lesson_text") or ""
+    topic = (payload.get("topic") or "").strip()
+    target = ex.generate_pronunciation_target(lesson_text, topic)
+    return {"target": target, "html": _pron_target_html(target)}
+
+
+@main_app.post("/api/exercises/pronunciation/check")
+async def api_pron_check(payload: dict):
+    target = payload.get("target") or {}
+    transcription = (payload.get("transcription") or "").strip()
+    if not transcription:
+        raise HTTPException(status_code=400, detail="transcription is required")
+    fb_data = ex.get_pronunciation_feedback(target.get("phrase", ""), transcription)
+    gamify.add_points(USER_ID, "pronunciation")
+    return {"html": _pron_feedback_html(fb_data)}
+
+
+@main_app.get("/api/summary")
+def api_summary():
+    try:
+        gamify.try_daily_open(USER_ID)
+    except Exception:
+        pass
+    summary = gamify.get_daily_summary(USER_ID)
+    total = gamify.get_total_points(USER_ID)
+    daily_stats = gamify.get_daily_stats(USER_ID)
+    concepts = gamify.get_concepts_progress()
+    return {"summary": summary, "total_points": total,
+            "daily_stats": daily_stats, "concepts": concepts}
+
+
+# ── Server startup ───────────────────────────────────────────────────────────
+# HF Spaces runs this file as __main__ (python app_custom.py).
+# uvicorn starts our main_app directly, giving us full routing control.
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        main_app,
+        host="0.0.0.0",
+        port=int(os.environ.get("CUSTOM_UI_PORT", 7860)),
+    )
