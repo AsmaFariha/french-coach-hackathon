@@ -3,9 +3,7 @@ title: French Coach
 emoji: 📓
 colorFrom: blue
 colorTo: red
-sdk: gradio
-sdk_version: 6.17.3
-app_file: app.py
+sdk: docker
 pinned: false
 ---
 
@@ -23,19 +21,13 @@ Built around **MiniCPM4.1-8B** (text) and **MiniCPM-V 4.6** (vision), both
 
 ## Entrypoint
 
-This Space runs `app_custom.py` (custom React UI, served at `/`, with
-`/api/...` JSON endpoints). It's a Gradio-SDK app: a `gr.Blocks` object backs
-the `gr.Server` that the React build and API routes are mounted onto.
+Runs `app_custom.py` via Docker (`CMD ["python", "app_custom.py"]`):
+- `/` — React frontend (custom-built UI)
+- `/api/*` — FastAPI JSON endpoints
+- `/gradio/` — Gradio Blocks UI (mounted for SDK eligibility)
 
-The React build (`frontend/dist/`) is committed to the repo, since a
-Gradio-SDK Space build does not run `npm`. Rebuild and re-commit it whenever
-`frontend/src/` changes (`cd frontend && npm run build`).
-
-### Reverting to the themed Blocks fallback
-
-If the custom UI ever fails on the Space, change `app_file` above from
-`app_custom.py` to `app.py` and redeploy — `app.py` (themed Gradio Blocks UI)
-is kept in the repo as a fully working fallback.
+The React build (`frontend/dist/`) is committed to the repo. Rebuild it
+whenever `frontend/src/` changes: `cd frontend && npm run build`.
 
 ## Local development
 
@@ -43,9 +35,8 @@ is kept in the repo as a fully working fallback.
 docker compose up -d --build
 ```
 
-- `app` (port 7860) — themed Blocks UI (`app.py`)
-- `app-custom` (port 7861) — custom React UI (`app_custom.py`), same as the
-  Space entrypoint
+- `app` (port 7860) — themed Gradio Blocks UI (`app.py`)
+- `app-custom` (port 7861) — React UI (`app_custom.py`), same as the Space
 - `db` (port 5432) — Postgres
 
 Copy `.env.example` to `.env` and fill in credentials first.
