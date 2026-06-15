@@ -6,13 +6,11 @@ Architecture:
     /              → React index.html
     /custom/       → React static assets (JS, CSS, images)
     /api/*         → JSON backend routes
-    /gradio/       → Gradio Blocks (mounted for HF SDK eligibility)
 
 Import order for ZeroGPU (critical):
   1. spaces   — intercepts CUDA before anything else touches it
   2. @spaces.GPU defined HERE in app_file (ZeroGPU static scan only checks app_file)
   3. llm      — wired via register_gpu_fn() so it can call the GPU function
-  4. gradio   — safe after spaces is set up
 """
 
 # ── ZeroGPU setup — MUST be at the very top of app_file ─────────────────────
@@ -69,7 +67,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import gradio as gr
 
 import nlp
 import prompts
@@ -130,15 +127,6 @@ def _domain(url: str) -> str:
         return url
 
 
-# ── Gradio demo (for HF SDK eligibility — mounted at /gradio) ────────────────
-
-with gr.Blocks(title="French Coach") as demo:
-    gr.Markdown(
-        "## French Coach\n\n"
-        "The app is at **[/](/)**. This Gradio tab exists for HF SDK eligibility."
-    )
-
-
 # ── Main FastAPI app — owns all routing ──────────────────────────────────────
 
 main_app = FastAPI(title="French Coach")
@@ -154,9 +142,6 @@ if os.path.isdir(FRONTEND_DIST):
         return _index_html
 
     main_app.mount("/custom", StaticFiles(directory=FRONTEND_DIST, html=True), name="custom-ui")
-
-# Mount Gradio at /gradio (before API routes — Gradio handles its own sub-paths)
-main_app = gr.mount_gradio_app(main_app, demo, path="/gradio")
 
 # ── API routes ───────────────────────────────────────────────────────────────
 
