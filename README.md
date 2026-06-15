@@ -1,42 +1,80 @@
 ---
 title: French Coach
-emoji: 📓
-colorFrom: blue
-colorTo: red
-sdk: docker
-pinned: false
+emoji: 🇫🇷
+colorFrom: indigo
+colorTo: yellow
+sdk: gradio
+sdk_version: "6.17.3"
+app_file: app_custom.py
+pinned: true
+license: apache-2.0
+tags:
+  # ⚠️ REPLACE THESE with the EXACT strings the field-guide "Validate README"
+  # tool expects. The labels below are placeholders for the human-readable
+  # badges/track — the validator's strings may differ (e.g. backyard-ai).
+  - build-small-hackathon
+  - backyard-ai            # main track (Backyard AI — "a personal study tutor")
+  - best-minicpm-build     # sponsor: built on MiniCPM (text + vision)
+  - off-brand              # custom gr.Server UI past default Gradio
+  - best-agent             # Coach Agent: multi-step plan->generate->critique->revise
+  - best-demo              # app + demo video + social post
+  - bonus-quest-champion   # most criteria met across the board
 ---
 
-# French Coach
+# 🇫🇷 French Coach
 
-A living French notebook for an adult learner on a ~4-month timeline for
-Canadian immigration (TEF/TCF). Write or paste class notes, see noun gender
-at a glance, click any word for meaning/grammar/pronunciation, ask the chat
-coach, and practice with text, spoken-dialogue, photo-based, and
-pronunciation exercises generated from the current lesson — with an
-encouraging daily summary and additive points.
+**A living French notebook that turns your class notes into practice — built for a real person studying for Canada's TEF/TCF exams.**
 
-Built around **MiniCPM4.1-8B** (text) and **MiniCPM-V 4.6** (vision), both
-≤ 32B and Apache-2.0 / free-API.
+French Coach is a Backyard-AI study tutor for an adult learning French on a four-month
+timeline for Canadian immigration (target CLB/NCLC 7). It collapses the usual mess of
+class notes plus three browser tabs (translate / pronounce / gender-check) into one
+surface — and adds practice the learner can't get between classes.
 
-## Entrypoint
+It runs on **self-hosted MiniCPM models** — nothing leaves the Space.
 
-Runs `app_custom.py` via Docker (`CMD ["python", "app_custom.py"]`):
-- `/` — React frontend (custom-built UI)
-- `/api/*` — FastAPI JSON endpoints
-- `/gradio/` — Gradio Blocks UI (mounted for SDK eligibility)
+## What it does
 
-The React build (`frontend/dist/`) is committed to the repo. Rebuild it
-whenever `frontend/src/` changes: `cd frontend && npm run build`.
+- **Smart notebook.** Write or paste class notes. Nouns are colored by gender at a
+  glance; click any word for its meaning, gender, and a one-line grammar note, with
+  pronunciation on tap. Saved pages are auto-titled and categorized by a curator pass.
+- **The Coach Agent.** The core feature. From the current lesson it produces a set of
+  5–7 mixed exercises (fill-in-the-blank, multiple choice, error detection, reorder,
+  translation) through a **plan → generate → critique → revise** loop — a small
+  multi-step agent that grounds each set in the lesson *and* the official A1–A2 CEFR
+  syllabus, then reviews its own output for a single unambiguous answer before showing
+  it. It's not a one-shot prompt; it checks and fixes its own work.
+- **Visual exercises.** MiniCPM-V reads an image and the app generates French
+  comprehension questions grounded in what's actually in it.
+- **Chat coach, dialogue, and pronunciation practice**, all grounded in the lesson.
+- **Encouraging by design.** Points are additive only — never deducted, never tied to
+  correctness. The daily summary leads with gains and frames gaps as "ready to practice
+  next." No streaks to lose, no red error states, no shaming. Ever.
 
-## Local development
+## How it's built
 
-```
-docker compose up -d --build
-```
+- **Models (all under the 32B cap, self-hosted on ZeroGPU):**
+  - **MiniCPM4.1-8B-Instruct** — text reasoning: the Coach Agent, chat, word cards,
+    grammar tools, summaries.
+  - **MiniCPM-V 4.6** (~1.3B) — vision: reads images for the visual exercises.
+  - <!-- BREAK-GLASS: if text runs via API instead of self-hosting, change the line
+       above to: "text runs on Qwen2.5-7B-Instruct via the HF Inference API; vision
+       runs on MiniCPM-V 4.6." Keep it accurate to what actually shipped. -->
+- **Custom UI** built with **gr.Server** + a React frontend served through the Gradio
+  app — past the default Gradio look (Off-Brand).
+- **Gradio SDK Space** under the `build-small-hackathon` org.
+- **Supabase** (hosted Postgres) for persistence: notebook pages, exercises, and an
+  append-only points ledger.
+- Deterministic French NLP (gender / part-of-speech / lemma) via spaCy runs instantly,
+  offline; only meaning, grammar, exercises, and dialogue hit the LLM.
 
-- `app` (port 7860) — themed Gradio Blocks UI (`app.py`)
-- `app-custom` (port 7861) — React UI (`app_custom.py`), same as the Space
-- `db` (port 5432) — Postgres
+## Why it's more than a chatbot wrapper
 
-Copy `.env.example` to `.env` and fill in credentials first.
+The gender-mapped notebook, the image-grounded visual exercises, and above all the
+**Coach Agent's self-critique loop** make this a tool that reasons in multiple steps,
+not a single LLM call behind a text box.
+
+## Links
+
+- 🎬 Demo video: https://www.loom.com/share/7b96f5523d104e99a1834509c5d57e1f
+- 📣 Social post: https://www.linkedin.com/posts/asma-fariha_buildsmall-smallllms-minicpm-share-7472418971804381184-Or_C/
+- Built on MiniCPM (OpenBMB). Made for one real learner — and dogfooded daily.
