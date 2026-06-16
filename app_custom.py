@@ -134,18 +134,10 @@ def _domain(url: str) -> str:
 
 def _attach_routes(app):
     """Inject React frontend + all API routes into Gradio's FastAPI app."""
-    from fastapi.routing import APIRoute
-
-    # Remove Gradio's "/" and "/{path:path}" catch-all so React can own /
-    app.router.routes = [
-        r for r in app.router.routes
-        if not (isinstance(r, APIRoute) and r.path in ("/", "/{path:path}"))
-    ]
-
-    # React at /
+    # Serve React at /app (leave Gradio's "/" intact so HF can load the Gradio frontend)
     if _index_html:
-        @app.get("/", response_class=HTMLResponse)
-        @app.head("/", response_class=HTMLResponse)
+        @app.get("/app", response_class=HTMLResponse)
+        @app.head("/app", response_class=HTMLResponse)
         def frontend_root():
             return _index_html
 
@@ -375,11 +367,6 @@ def _attach_routes(app):
         return {"summary": summary, "total_points": total,
                 "daily_stats": daily_stats, "concepts": concepts}
 
-    # SPA catch-all — must be last so Gradio's own routes (/config, /queue/*, etc.) match first
-    if _index_html:
-        @app.get("/{path:path}", response_class=HTMLResponse)
-        def spa_fallback(path: str):
-            return _index_html
 
 
 # ── Monkey-patch Gradio's App.create_app ─────────────────────────────────────
@@ -410,7 +397,7 @@ if not _space_host:
     if _sid and "/" in _sid:
         _org, _repo = _sid.lower().split("/", 1)
         _space_host = f"{_org}-{_repo}.hf.space"
-_embed_url = f"https://{_space_host}/" if _space_host else "/"
+_embed_url = f"https://{_space_host}/app" if _space_host else "/app"
 
 with gr.Blocks(title="French Coach", css=(
     ".gradio-container{max-width:100%!important;padding:0!important;"
