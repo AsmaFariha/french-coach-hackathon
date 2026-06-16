@@ -401,12 +401,27 @@ def _patched_create_app(cls, blocks, **kwargs):
 _gr_routes.App.create_app = _patched_create_app
 
 
-# ── Gradio demo (the real Gradio interface — Off-Brand badge) ─────────────────
-with gr.Blocks(title="French Coach") as demo:
-    gr.Markdown(
-        "## 🗼 French Coach\n\n"
-        "The full app is at **[/](/)**. "
-        "This Gradio tab is here for SDK eligibility."
+# ── Gradio demo — full-screen iframe to the React app ────────────────────────
+# HF's Space embed renders Gradio components from /config (not by loading "/"),
+# so we put an iframe inside the Gradio UI that points to our React app.
+_space_host = os.environ.get("SPACE_HOST", "")
+if not _space_host:
+    _sid = os.environ.get("SPACE_ID", "")
+    if _sid and "/" in _sid:
+        _org, _repo = _sid.lower().split("/", 1)
+        _space_host = f"{_org}-{_repo}.hf.space"
+_embed_url = f"https://{_space_host}/" if _space_host else "/"
+
+with gr.Blocks(title="French Coach", css=(
+    ".gradio-container{max-width:100%!important;padding:0!important;"
+    "margin:0!important;height:100vh!important;overflow:hidden!important}"
+    "footer{display:none!important}"
+)) as demo:
+    gr.HTML(
+        f'<iframe src="{_embed_url}" '
+        f'style="position:fixed;top:0;left:0;width:100%;height:100%;border:none;" '
+        f'allow="microphone;camera;autoplay;clipboard-write">'
+        f'</iframe>'
     )
 
 
