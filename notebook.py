@@ -116,6 +116,51 @@ def update_page(page_id: str, user_id: str, raw_text: str, annotations: dict) ->
     return title
 
 
+def add_manual_link(user_id: str, title: str, url: str) -> None:
+    """Append a manually-added link to the user's pinned 'My Resources' page.
+
+    Upserts a single resource page titled 'My Resources' — the page_type is
+    'resource' so it shows in the Resources tab, never in the lesson sidebar.
+    """
+    title = (title or "").strip()[:120] or url
+    url   = (url   or "").strip()
+    if not url:
+        return
+    new_link = {"label": title, "url": url}
+    with get_cursor() as cur:
+        # Find existing pinned resource page for this user
+        cur.execute(
+            "SELECT id::text, metadata FROM pages "
+            "WHERE user_id = %s AND metadata->>'page_type' = 'resource' "
+            "AND title = 'My Resources' ORDER BY created_at ASC LIMIT 1",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row:
+            meta  = dict(row["metadata"]) if row["metadata"] else {}
+            links = list(meta.get("links") or [])
+            links.append(new_link)
+            meta["links"] = links
+            cur.execute(
+                "UPDATE pages SET metadata = %s WHERE id = %s",
+                (json.dumps(meta), row["id"]),
+            )
+        else:
+            meta = {
+                "category": "Resources",
+                "summary": "Manually saved online resources",
+                "page_type": "resource",
+                "links": [new_link],
+                "books": [],
+            }
+            cur.execute(
+                """INSERT INTO pages (user_id, title, date, raw_text, annotations, metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (user_id, "My Resources", date.today(),
+                 "Manually saved resources", json.dumps({}), json.dumps(meta)),
+            )
+
+
 def delete_page(page_id: str, user_id: str) -> bool:
     """Delete page row (exercises cascade). Returns True if a row was deleted."""
     with get_cursor() as cur:

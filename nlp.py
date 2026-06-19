@@ -6,7 +6,12 @@ _nlp = None
 def get_nlp():
     global _nlp
     if _nlp is None:
-        _nlp = spacy.load("fr_core_news_sm")
+        try:
+            _nlp = spacy.load("fr_core_news_sm")
+        except OSError:
+            from spacy.cli import download as _dl
+            _dl("fr_core_news_sm")
+            _nlp = spacy.load("fr_core_news_sm")
     return _nlp
 
 

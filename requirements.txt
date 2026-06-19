@@ -3,8 +3,7 @@ uvicorn[standard]
 transformers>=4.40
 accelerate>=0.30
 huggingface_hub>=0.24
-spacy>=3.7,<3.9
-https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.7.0/fr_core_news_sm-3.7.0-py3-none-any.whl
+spacy
 python-dotenv
 openai
 psycopg2-binary

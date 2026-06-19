@@ -571,6 +571,16 @@ def delete_page_handler(page_id: str, user_id: str):
         return (f"⚠ Could not delete: {e}", _render_sidebar_html(user_id), "", "", "", page_id,
                 gr.update(), gr.update(), *_page_btns_visible())
 
+def add_resource_handler(title: str, url: str, user_id: str):
+    url = (url or "").strip()
+    if not url:
+        return "⚠ Please enter a URL.", ""
+    try:
+        nb.add_manual_link(user_id, title, url)
+        return "✅ Link saved!", _render_resources_html(user_id)
+    except Exception as e:
+        return f"⚠ Could not save: {e}", ""
+
 # ── Chat tab handlers ─────────────────────────────────────────────────────────
 
 def chat_fn(message: str, history: list, user_id: str, lesson_text: str):
@@ -992,6 +1002,13 @@ PAGE_JS = """
             const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
             if (setter) setter.call(ta, payload);
             ta.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            // Click the hidden trigger button — more reliable than input event in Gradio 6
+            setTimeout(function() {
+                const triggerWrapper = document.getElementById('word-click-btn');
+                if (!triggerWrapper) return;
+                const btn = triggerWrapper.querySelector('button');
+                if (btn) btn.click();
+            }, 30);
         });
     }
     document.readyState === 'loading'
@@ -1082,14 +1099,29 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
                 with gr.Column(scale=2, elem_id="word-card-area"):
                     gr.Markdown("### 🔤 Word card")
                     word_card  = gr.HTML(value=_empty_card())
-                    click_data = gr.Textbox(elem_id="word-click-data", visible=True, label="click-data")
+                    click_data      = gr.Textbox(elem_id="word-click-data", visible=True, label="click-data")
+                    word_click_btn  = gr.Button("x", elem_id="word-click-btn", visible=False, size="sm")
 
         # ── Tab 2: Resources ──────────────────────────────────────────────────
         with gr.Tab("📚 Resources"):
             gr.Markdown(
-                "Links and book recommendations from your notebook, kept separate "
-                "from your lesson notes."
+                "Links and book recommendations from your notebook — save any useful "
+                "site or add them manually below."
             )
+            with gr.Accordion("➕ Add a link", open=False):
+                with gr.Row():
+                    res_link_title = gr.Textbox(
+                        label="Title / description",
+                        placeholder='e.g. "Conjugation tables — Bescherelle"',
+                        scale=2,
+                    )
+                    res_link_url   = gr.Textbox(
+                        label="URL",
+                        placeholder="https://…",
+                        scale=3,
+                    )
+                    res_add_btn    = gr.Button("Add link", variant="primary", scale=1, min_width=110)
+                res_add_status = gr.Markdown("")
             refresh_resources_btn = gr.Button("↻ Refresh", size="sm")
             resources_display = gr.HTML(value="")
 
@@ -1106,71 +1138,98 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
 
         # ── Tab 4: Exercises ──────────────────────────────────────────────────
         with gr.Tab("🏋️ Exercises"):
-            with gr.Tabs():
+            with gr.Row(equal_height=False):
 
-                with gr.Tab("📝 Coach"):
-                    gr.Markdown(
-                        "The Coach Agent plans a set of 5–7 mixed exercises grounded in your "
-                        "current lesson and the A1–A2 syllabus, then reviews its own output before showing it."
-                    )
-                    with gr.Row():
-                        ex_topic_input = gr.Textbox(
-                            label="Topic (optional)",
-                            placeholder='e.g. "café vocabulary", "le passé composé"…',
-                            scale=4,
-                        )
-                        gen_ex_btn = gr.Button("✨ Generate exercises", variant="primary", scale=1, min_width=160)
-                    text_ex_display = gr.HTML()
+                # ── Left: exercise sub-tabs ───────────────────────────────────
+                with gr.Column(scale=3):
+                    with gr.Tabs():
 
-                with gr.Tab("🗣 Dialogue"):
-                    gr.Markdown("The agent plays one role in a short French scene. You reply; it gives encouraging feedback.")
-                    with gr.Row():
-                        dial_topic_input = gr.Textbox(
-                            label="Topic (optional)",
-                            placeholder='e.g. "at the pharmacy", "asking for directions"…',
-                            scale=4,
-                        )
-                        gen_dial_btn = gr.Button("▶ Start dialogue", variant="primary", scale=1, min_width=160)
-                    dial_transcript  = gr.HTML()
-                    dial_hint        = gr.Markdown("")
-                    dial_input       = gr.Textbox(label="Your reply (French)", lines=2)
-                    send_dial_btn    = gr.Button("Send reply →", variant="primary")
-                    dial_feedback    = gr.HTML()
+                        with gr.Tab("📝 Coach"):
+                            gr.Markdown(
+                                "The Coach Agent plans a set of 5–7 mixed exercises grounded in your "
+                                "current lesson and the A1–A2 syllabus, then reviews its own output before showing it."
+                            )
+                            with gr.Row():
+                                ex_topic_input = gr.Textbox(
+                                    label="Topic (optional)",
+                                    placeholder='e.g. "café vocabulary", "le passé composé"…',
+                                    scale=4,
+                                )
+                                gen_ex_btn = gr.Button("✨ Generate", variant="primary", scale=1, min_width=120)
+                            text_ex_display = gr.HTML()
 
-                with gr.Tab("📷 Visual"):
-                    gr.Markdown(
-                        "The coach picks a photo matched to your lesson's topic and builds "
-                        "French exercises from what's in it — no upload needed."
-                    )
-                    with gr.Row():
-                        visual_topic_input = gr.Textbox(
-                            label="Topic (optional)",
-                            placeholder='e.g. "food and dining", "shopping"…',
-                            scale=4,
-                        )
-                        gen_visual_btn = gr.Button("✨ Generate exercises", variant="primary", scale=1, min_width=160)
-                    visual_photo   = gr.Image(interactive=False, label="Photo", visible=False)
-                    visual_display = gr.HTML()
+                        with gr.Tab("🗣 Dialogue"):
+                            gr.Markdown("The agent plays one role in a short French scene. You reply; it gives encouraging feedback.")
+                            with gr.Row():
+                                dial_topic_input = gr.Textbox(
+                                    label="Topic (optional)",
+                                    placeholder='e.g. "at the pharmacy", "asking for directions"…',
+                                    scale=4,
+                                )
+                                gen_dial_btn = gr.Button("▶ Start", variant="primary", scale=1, min_width=120)
+                            dial_transcript  = gr.HTML()
+                            dial_hint        = gr.Markdown("")
+                            dial_input       = gr.Textbox(label="Your reply (French)", lines=2)
+                            send_dial_btn    = gr.Button("Send reply →", variant="primary")
+                            dial_feedback    = gr.HTML()
 
-                with gr.Tab("🎙 Pronunciation"):
-                    gr.Markdown("Get a phrase to practise, hear it, then say it aloud and check your pronunciation.")
-                    with gr.Row():
-                        pron_topic_input = gr.Textbox(
-                            label="Topic (optional)",
-                            placeholder='e.g. "numbers", "café ordering"…',
-                            scale=4,
+                        with gr.Tab("📷 Visual"):
+                            gr.Markdown(
+                                "The coach picks a photo matched to your lesson's topic and builds "
+                                "French exercises from what's in it — no upload needed."
+                            )
+                            with gr.Row():
+                                visual_topic_input = gr.Textbox(
+                                    label="Topic (optional)",
+                                    placeholder='e.g. "food and dining", "shopping"…',
+                                    scale=4,
+                                )
+                                gen_visual_btn = gr.Button("✨ Generate", variant="primary", scale=1, min_width=120)
+                            visual_photo   = gr.Image(interactive=False, label="Photo", visible=False)
+                            visual_display = gr.HTML()
+
+                        with gr.Tab("🎙 Pronunciation"):
+                            gr.Markdown("Get a phrase to practise, hear it, then say it aloud and check your pronunciation.")
+                            with gr.Row():
+                                pron_topic_input = gr.Textbox(
+                                    label="Topic (optional)",
+                                    placeholder='e.g. "numbers", "café ordering"…',
+                                    scale=4,
+                                )
+                                get_pron_btn = gr.Button("🎯 Get phrase", variant="primary", scale=1, min_width=120)
+                            pron_target_html = gr.HTML()
+                            gr.Markdown("Read the phrase aloud, then type (or paste) what you said:")
+                            pron_input       = gr.Textbox(
+                                label="Your spoken text", lines=2,
+                                elem_id="pronunciation-input",
+                                placeholder="Type what you said…",
+                            )
+                            speak_btn        = gr.Button("🎙 Use microphone (Chrome/Edge)", size="sm")
+                            check_pron_btn   = gr.Button("Check pronunciation", variant="primary")
+                            pron_feedback    = gr.HTML()
+
+                # ── Right: quick tools side panel ─────────────────────────────
+                with gr.Column(scale=1, min_width=260, elem_id="ex-tools-panel"):
+                    gr.Markdown("### 🔧 Quick Tools")
+
+                    with gr.Accordion("🔤 Gender Checker", open=True):
+                        ex_gender_input = gr.Textbox(
+                            placeholder="e.g. pomme, table…",
+                            label="French noun",
+                            lines=1,
                         )
-                        get_pron_btn = gr.Button("🎯 Get phrase", variant="primary", scale=1, min_width=160)
-                    pron_target_html = gr.HTML()
-                    gr.Markdown("Read the phrase aloud, then type (or paste) what you said:")
-                    pron_input       = gr.Textbox(
-                        label="Your spoken text", lines=2,
-                        elem_id="pronunciation-input",
-                        placeholder="Type what you said…",
-                    )
-                    speak_btn        = gr.Button("🎙 Use microphone (Chrome/Edge)", size="sm")
-                    check_pron_btn   = gr.Button("Check pronunciation", variant="primary")
-                    pron_feedback    = gr.HTML()
+                        ex_gender_btn    = gr.Button("🔍 Check", size="sm", variant="primary")
+                        ex_gender_result = gr.HTML()
+
+                    with gr.Accordion("🔁 Translator", open=False):
+                        ex_trans_dir = gr.Radio(
+                            choices=["EN → FR", "FR → EN"],
+                            value="EN → FR",
+                            label="Direction",
+                        )
+                        ex_trans_input  = gr.Textbox(placeholder="Text to translate…", label="Text", lines=2)
+                        ex_trans_btn    = gr.Button("🔁 Translate", size="sm", variant="primary")
+                        ex_trans_result = gr.HTML()
 
         # ── Tab 5: Tools ─────────────────────────────────────────────────────
         with gr.Tab("🔧 Tools"):
@@ -1227,6 +1286,11 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         inputs=[user_id_state],
         outputs=[resources_display],
     )
+    res_add_btn.click(
+        fn=add_resource_handler,
+        inputs=[res_link_title, res_link_url, user_id_state],
+        outputs=[res_add_status, resources_display],
+    )
 
     # Notebook — annotate + toggle
     annotate_btn.click(
@@ -1240,6 +1304,11 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         outputs=[html_out],
     )
     click_data.input(
+        fn=show_word_card,
+        inputs=[click_data, ann_state, user_id_state],
+        outputs=[word_card, ann_state],
+    )
+    word_click_btn.click(
         fn=show_word_card,
         inputs=[click_data, ann_state, user_id_state],
         outputs=[word_card, ann_state],
@@ -1385,6 +1454,28 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         fn=translate_handler,
         inputs=[trans_input, trans_direction, trans_use_context, text_input, user_id_state],
         outputs=[trans_result],
+    )
+
+    # Side panel (Exercises tab) — Gender Checker
+    ex_gender_btn.click(
+        fn=gender_check_handler,
+        inputs=[ex_gender_input, user_id_state],
+        outputs=[ex_gender_result],
+    )
+    ex_gender_input.submit(
+        fn=gender_check_handler,
+        inputs=[ex_gender_input, user_id_state],
+        outputs=[ex_gender_result],
+    )
+
+    # Side panel (Exercises tab) — Translator (no lesson-context checkbox for compact panel)
+    def _side_translate(text, direction, user_id):
+        return translate_handler(text, direction, False, "", user_id)
+
+    ex_trans_btn.click(
+        fn=_side_translate,
+        inputs=[ex_trans_input, ex_trans_dir, user_id_state],
+        outputs=[ex_trans_result],
     )
 
     # Summary
