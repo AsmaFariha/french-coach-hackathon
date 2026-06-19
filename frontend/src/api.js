@@ -3,7 +3,7 @@
 //  - in dev, via the Vite proxy (vite.config.js -> http://localhost:7861)
 //  - in production, served same-origin by app_custom.py at /custom/
 
-const BASE = '/api'
+const BASE = '/gradio_api/fc'
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {

@@ -81,6 +81,10 @@ CUSTOM_CSS = """
     box-shadow: 0 4px 14px rgba(0,35,149,0.22);
 }
 #app-header .block { background: transparent !important; border: none !important; box-shadow: none !important; }
+
+/* Login button in the header — white outline style on dark background */
+#app-header button.lg { background: rgba(255,255,255,0.15) !important; color: #fff !important; border: 1px solid rgba(255,255,255,0.4) !important; }
+#app-header button.lg:hover { background: rgba(255,255,255,0.25) !important; }
 #app-title h1 {
     color: #ffffff !important;
     font-size: 2.1rem;
@@ -133,6 +137,16 @@ span[data-token]:hover { filter: brightness(0.85); }
 
 /* Gender legend pills */
 .gender-legend span { border-radius: 12px; padding: 2px 10px; font-size: 0.82rem; font-weight: 600; }
+
+/* Gender checker result card */
+.fc-gender-headword { font-size: 1.6rem; font-weight: 700; font-family: Georgia, serif; margin-bottom: 10px; }
+.fc-gender-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.fc-gender-pills span { border-radius: 12px; padding: 3px 12px; font-size: 0.85rem; font-weight: 600; border: 1px solid currentColor; }
+.fc-gender-example { font-family: Georgia, serif; font-size: 1.05rem; margin: 8px 0; }
+.fc-gender-pattern { font-size: 0.9rem; color: #555; font-style: italic; margin-top: 8px; background: #fffde7; border-radius: 6px; padding: 6px 10px; }
+
+/* Coach exercise type pills */
+.fc-ex-type-pill { border-radius: 12px; padding: 2px 10px; font-size: 0.8rem; font-weight: 600; background: rgba(74,144,217,0.12); color: #4A90D9; }
 """
 
 # ── Custom French theme ─────────────────────────────────────────────────────
@@ -172,10 +186,8 @@ FC_THEME = gr.themes.Soft(
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
-def get_user_id(profile: gr.OAuthProfile | None) -> str | None:
-    if profile is not None:
-        return profile.username
-    return None if IS_SPACE else "dev_user"
+def get_user_id(request: gr.Request) -> str:
+    return "demo_user"
 
 
 def _login_prompt() -> str:
@@ -597,29 +609,18 @@ def chat_fn(message: str, history: list, user_id: str, lesson_text: str):
 
 # ── Text exercise handlers ────────────────────────────────────────────────────
 
-def gen_text_exercise(lesson_text: str, user_id: str):
+def gen_coach_exercises(lesson_text: str, topic: str, user_id: str):
     if not user_id:
-        return _login_prompt(), gr.State("")
-    exercise = ex.generate_text_exercise(lesson_text, user_id)
-    return ex.render_text_exercise(exercise), json.dumps(exercise)
-
-
-def check_text_answer(user_answer: str, exercise_json: str, user_id: str):
-    if not exercise_json:
-        return ""
-    exercise = json.loads(exercise_json)
-    answer   = exercise.get("answer", "").strip().lower()
-    correct  = user_answer.strip().lower() == answer
-    if user_id:
-        gamify.add_points(user_id, "exercise_done")
-    return ex.render_exercise_feedback(correct, exercise.get("answer",""), exercise.get("explanation",""))
+        return _login_prompt()
+    data = ex.generate_exercise_set(lesson_text, user_id, topic=topic or "")
+    return _render_coach_exercises(data)
 
 # ── Dialogue handlers ─────────────────────────────────────────────────────────
 
-def gen_dialogue(lesson_text: str, user_id: str):
+def gen_dialogue(lesson_text: str, topic: str, user_id: str):
     if not user_id:
         return _login_prompt(), "", "{}"
-    dialogue    = ex.generate_dialogue(lesson_text, user_id)
+    dialogue    = ex.generate_dialogue(lesson_text, user_id, topic=topic or "")
     state       = {"dialogue": dialogue, "replies": []}
     hint        = ex.get_next_user_hint(dialogue, 0)
     transcript  = ex.render_dialogue(dialogue, [])
@@ -656,21 +657,30 @@ def send_dialogue_reply(reply: str, state_json: str, user_id: str):
 
 # ── Visual exercise handlers ──────────────────────────────────────────────────
 
-def gen_visual_exercise(image, user_id: str):
-    if image is None:
-        return '<div style="color:#888;padding:12px">Upload a photo to generate exercises.</div>'
+def gen_visual_sample(lesson_text: str, topic: str, user_id: str):
     if not user_id:
-        return _login_prompt()
-    result = ex.generate_visual_exercise(image, user_id)
+        return gr.update(visible=False), _login_prompt()
+    from PIL import Image as PILImage
+    image_data = ex.pick_sample_image(topic or "", user_id)
+    if not image_data:
+        return gr.update(visible=False), '<div style="color:#c62828;padding:12px">No sample images available.</div>'
+    result = ex.generate_visual_topic_exercise(image_data, lesson_text, user_id, topic or "")
     gamify.add_points(user_id, "photo_exercise")
-    return ex.render_visual_exercises(result)
+    import os as _os
+    img_path = _os.path.join(_os.path.dirname(__file__), "frontend", "public", "sample_images", image_data["filename"])
+    try:
+        pil_img = PILImage.open(img_path)
+        img_update = gr.update(value=pil_img, visible=True)
+    except Exception:
+        img_update = gr.update(visible=False)
+    return img_update, ex.render_visual_exercises(result)
 
 # ── Pronunciation handlers ────────────────────────────────────────────────────
 
-def get_pron_target(lesson_text: str, user_id: str):
+def get_pron_target(lesson_text: str, topic: str, user_id: str):
     if not user_id:
         return _login_prompt(), "{}"
-    target = ex.generate_pronunciation_target(lesson_text)
+    target = ex.generate_pronunciation_target(lesson_text, topic=topic or "")
     html = (
         f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px;background:#fff">'
         f'<div style="font-size:1.4rem;font-family:Georgia,serif;margin-bottom:8px">'
@@ -702,6 +712,149 @@ def check_pronunciation(transcription: str, target_json: str, user_id: str):
         f'</div>'
     )
 
+# ── Gender Checker handler ────────────────────────────────────────────────────
+
+def gender_check_handler(word: str, user_id: str) -> str:
+    if not user_id:
+        return _login_prompt()
+    word = word.strip()
+    if not word:
+        return '<div style="color:#888;padding:12px">Enter a French noun to check.</div>'
+    try:
+        info = nlp.word_info(word)
+        data = llm.get_gender_check(info["word"], info.get("pos") or "")
+        g = data.get("gender")
+        color = "#4A90D9" if g == "Masc" else "#D96B8A" if g == "Fem" else "#555"
+        label = ("Masculine ♂" if g == "Masc" else "Feminine ♀" if g == "Fem" else "")
+        art   = data.get("article", "")
+        indef = data.get("indefinite_article", "")
+        ex_fr = data.get("example", "")
+        ex_en = data.get("example_translation", "")
+        pat   = data.get("pattern_note", "")
+        pills = ""
+        if label:
+            pills += f'<span style="color:{color};border:1px solid {color};border-radius:12px;padding:3px 12px;font-size:0.85rem;font-weight:600;margin-right:6px">{label}</span>'
+        if art:
+            pills += f'<span style="border:1px solid #ccc;border-radius:12px;padding:3px 12px;font-size:0.85rem;margin-right:6px">{art} {data.get("word","")}</span>'
+        if indef:
+            pills += f'<span style="border:1px solid #ccc;border-radius:12px;padding:3px 12px;font-size:0.85rem;">{indef} {data.get("word","")}</span>'
+        example_html = ""
+        if ex_fr:
+            example_html = (
+                f'<div style="font-family:Georgia,serif;font-size:1.05rem;margin:10px 0 2px">{ex_fr}</div>'
+                + (f'<div style="color:#888;font-size:0.88rem">{ex_en}</div>' if ex_en else "")
+            )
+        pattern_html = f'<div class="fc-gender-pattern">💡 {pat}</div>' if pat else ""
+        return (
+            f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px;background:#fff">'
+            f'<div class="fc-gender-headword" style="color:{color}">{data.get("word","")}</div>'
+            f'<div style="margin-bottom:8px">{pills}</div>'
+            f'{example_html}'
+            f'{pattern_html}'
+            f'</div>'
+        )
+    except Exception as e:
+        return f'<div style="color:#c62828;padding:12px">Could not check this word: {e}</div>'
+
+
+# ── Translator handler ────────────────────────────────────────────────────────
+
+def translate_handler(text: str, direction: str, use_context: bool, lesson_text: str, user_id: str) -> str:
+    if not user_id:
+        return _login_prompt()
+    text = text.strip()
+    if not text:
+        return '<div style="color:#888;padding:12px">Enter some text to translate.</div>'
+    try:
+        ctx = lesson_text if use_context else ""
+        data = llm.translate_text(text, direction, ctx)
+        main = data.get("translation", "")
+        alts = data.get("alternatives", [])
+        ex_fr = data.get("example_fr", "")
+        ex_en = data.get("example_en", "")
+        alts_html = ""
+        if alts:
+            alts_html = '<div style="font-size:0.88rem;color:#666;margin-top:6px">Also: ' + " · ".join(alts) + "</div>"
+        example_html = ""
+        if ex_fr:
+            example_html = (
+                f'<div style="font-family:Georgia,serif;font-size:1rem;margin-top:10px;padding-top:10px;'
+                f'border-top:1px solid #eee">{ex_fr}</div>'
+                + (f'<div style="color:#888;font-size:0.88rem;margin-top:2px">{ex_en}</div>' if ex_en else "")
+            )
+        return (
+            f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:16px;background:#fff">'
+            f'<div style="font-size:1.2rem;font-family:Georgia,serif;font-weight:600">{main}</div>'
+            f'{alts_html}'
+            f'{example_html}'
+            f'</div>'
+        )
+    except Exception as e:
+        return f'<div style="color:#c62828;padding:12px">Could not translate: {e}</div>'
+
+
+# ── Coach exercise set renderer ───────────────────────────────────────────────
+
+_EX_TYPE_LABELS = {
+    "fill_blank": "Fill in the blank",
+    "multiple_choice": "Multiple choice",
+    "error_detection": "Find the error",
+    "reorder": "Put in order",
+    "translation": "Translate",
+}
+
+def _render_coach_exercises(data: dict) -> str:
+    exercises = data.get("exercises", [])
+    if not exercises:
+        return '<div style="color:#888;padding:12px">No exercises generated — try again.</div>'
+    parts = []
+    n = len(exercises)
+    for i, e in enumerate(exercises, 1):
+        t = e.get("type", "")
+        label = _EX_TYPE_LABELS.get(t, t.replace("_", " ").title())
+        hint  = e.get("hint", "")
+        answer = e.get("answer", "")
+        explanation = e.get("explanation", "")
+        if t == "fill_blank":
+            content = e.get("sentence_with_blank", "")
+        elif t == "multiple_choice":
+            q    = e.get("question", "")
+            opts = e.get("options", [])
+            opts_html = "".join(f'<li style="margin:4px 0">{opt}</li>' for opt in opts)
+            content = f'{q}<ul style="margin:8px 0 0;padding-left:1.4em">{opts_html}</ul>'
+        elif t == "error_detection":
+            content = e.get("sentence", "")
+        elif t == "reorder":
+            words = e.get("words", [])
+            content = " · ".join(f'<strong>{w}</strong>' for w in words)
+        elif t == "translation":
+            content = e.get("prompt", "")
+        else:
+            content = str(e)
+        hint_html = (
+            f'<div style="font-size:0.85rem;color:#888;font-style:italic;margin:4px 0">Hint: {hint}</div>'
+            if hint else ""
+        )
+        parts.append(
+            f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin-bottom:10px;background:#fff">'
+            f'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
+            f'<span class="fc-ex-type-pill">{label}</span>'
+            f'<span style="color:#aaa;font-size:0.8rem">Exercise {i} of {n}</span>'
+            f'</div>'
+            f'<p style="font-weight:600;margin:0 0 8px">{e.get("instruction","")}</p>'
+            f'<div style="font-family:Georgia,serif;font-size:1.05rem;margin:0 0 8px">{content}</div>'
+            f'{hint_html}'
+            f'<details style="font-size:0.9rem;margin-top:8px">'
+            f'<summary style="cursor:pointer;color:#4A90D9;font-weight:500">Show answer</summary>'
+            f'<div style="margin-top:8px;padding:10px;background:#f0f7ff;border-radius:6px">'
+            f'<strong>Answer:</strong> {answer}<br><br>'
+            f'<span style="color:#555">{explanation}</span>'
+            f'</div></details>'
+            f'</div>'
+        )
+    return "".join(parts)
+
+
 # ── Daily summary handlers ────────────────────────────────────────────────────
 
 def refresh_summary(user_id: str):
@@ -713,21 +866,26 @@ def refresh_summary(user_id: str):
 
 # ── Page-load handler ─────────────────────────────────────────────────────────
 
-def on_load(profile: gr.OAuthProfile | None):
-    user_id = get_user_id(profile)
-    if user_id:
-        try:
-            gamify.try_daily_open(user_id)
-        except Exception:
-            pass
-
-    if user_id is None:
-        return None, gr.Markdown(visible=False), _login_prompt(), "", _render_sidebar_html(None), _render_resources_html(None)
-
-    label   = f"👤 **{user_id}**" if user_id != "dev_user" else "🛠 *local dev*"
-    html, ann = process_text(SAMPLE_TEXT, True, user_id)
-    return (user_id, gr.Markdown(label, visible=True), html, ann,
-            _render_sidebar_html(user_id), _render_resources_html(user_id))
+def on_load(request: gr.Request):
+    user_id = get_user_id(request)
+    try:
+        gamify.try_daily_open(user_id)
+    except Exception:
+        pass
+    try:
+        html, ann = process_text(SAMPLE_TEXT, True, user_id)
+    except Exception:
+        html = '<div style="color:#888;padding:18px">Paste French text above and click <strong>Annotate</strong> to get started.</div>'
+        ann = ""
+    try:
+        sidebar = _render_sidebar_html(user_id)
+    except Exception:
+        sidebar = '<div style="color:#aaa;padding:14px;font-size:0.88rem">No lessons saved yet.</div>'
+    try:
+        resources = _render_resources_html(user_id)
+    except Exception:
+        resources = ""
+    return (user_id, html, ann, sidebar, resources)
 
 # ── Sidebar click handler (gr.HTML.click + js_on_load trigger) ───────────────
 
@@ -849,10 +1007,10 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
     # Shared state
     user_id_state       = gr.State(None)
     ann_state           = gr.State("")
-    exercise_state      = gr.State("")
     dialogue_state      = gr.State("{}")
     pron_target_state   = gr.State("{}")
     current_page_id     = gr.State(None)   # page currently loaded in the editor
+
 
     # ── Header ───────────────────────────────────────────────────────────────
     with gr.Row(equal_height=True, elem_id="app-header"):
@@ -950,16 +1108,29 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         with gr.Tab("🏋️ Exercises"):
             with gr.Tabs():
 
-                with gr.Tab("📝 Text"):
-                    gen_ex_btn      = gr.Button("Generate exercise from current lesson", variant="primary")
-                    text_ex_display = gr.HTML()
+                with gr.Tab("📝 Coach"):
+                    gr.Markdown(
+                        "The Coach Agent plans a set of 5–7 mixed exercises grounded in your "
+                        "current lesson and the A1–A2 syllabus, then reviews its own output before showing it."
+                    )
                     with gr.Row():
-                        text_ex_answer = gr.Textbox(label="Your answer", scale=3)
-                        check_ex_btn   = gr.Button("Check answer", scale=1)
-                    text_ex_feedback = gr.HTML()
+                        ex_topic_input = gr.Textbox(
+                            label="Topic (optional)",
+                            placeholder='e.g. "café vocabulary", "le passé composé"…',
+                            scale=4,
+                        )
+                        gen_ex_btn = gr.Button("✨ Generate exercises", variant="primary", scale=1, min_width=160)
+                    text_ex_display = gr.HTML()
 
                 with gr.Tab("🗣 Dialogue"):
-                    gen_dial_btn     = gr.Button("Start dialogue from current lesson", variant="primary")
+                    gr.Markdown("The agent plays one role in a short French scene. You reply; it gives encouraging feedback.")
+                    with gr.Row():
+                        dial_topic_input = gr.Textbox(
+                            label="Topic (optional)",
+                            placeholder='e.g. "at the pharmacy", "asking for directions"…',
+                            scale=4,
+                        )
+                        gen_dial_btn = gr.Button("▶ Start dialogue", variant="primary", scale=1, min_width=160)
                     dial_transcript  = gr.HTML()
                     dial_hint        = gr.Markdown("")
                     dial_input       = gr.Textbox(label="Your reply (French)", lines=2)
@@ -967,13 +1138,29 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
                     dial_feedback    = gr.HTML()
 
                 with gr.Tab("📷 Visual"):
-                    gr.Markdown("Upload a real photo — café menu, street sign, recipe — and get French exercises from it.")
-                    image_input      = gr.Image(type="pil", label="Upload photo")
-                    gen_visual_btn   = gr.Button("Generate exercises from photo", variant="primary")
-                    visual_display   = gr.HTML()
+                    gr.Markdown(
+                        "The coach picks a photo matched to your lesson's topic and builds "
+                        "French exercises from what's in it — no upload needed."
+                    )
+                    with gr.Row():
+                        visual_topic_input = gr.Textbox(
+                            label="Topic (optional)",
+                            placeholder='e.g. "food and dining", "shopping"…',
+                            scale=4,
+                        )
+                        gen_visual_btn = gr.Button("✨ Generate exercises", variant="primary", scale=1, min_width=160)
+                    visual_photo   = gr.Image(interactive=False, label="Photo", visible=False)
+                    visual_display = gr.HTML()
 
                 with gr.Tab("🎙 Pronunciation"):
-                    get_pron_btn     = gr.Button("Get a phrase to practise", variant="primary")
+                    gr.Markdown("Get a phrase to practise, hear it, then say it aloud and check your pronunciation.")
+                    with gr.Row():
+                        pron_topic_input = gr.Textbox(
+                            label="Topic (optional)",
+                            placeholder='e.g. "numbers", "café ordering"…',
+                            scale=4,
+                        )
+                        get_pron_btn = gr.Button("🎯 Get phrase", variant="primary", scale=1, min_width=160)
                     pron_target_html = gr.HTML()
                     gr.Markdown("Read the phrase aloud, then type (or paste) what you said:")
                     pron_input       = gr.Textbox(
@@ -985,7 +1172,45 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
                     check_pron_btn   = gr.Button("Check pronunciation", variant="primary")
                     pron_feedback    = gr.HTML()
 
-        # ── Tab 5: Daily Summary ──────────────────────────────────────────────
+        # ── Tab 5: Tools ─────────────────────────────────────────────────────
+        with gr.Tab("🔧 Tools"):
+            with gr.Tabs():
+
+                with gr.Tab("🔤 Gender Checker"):
+                    gr.Markdown(
+                        "Type a French noun to see its gender, articles (le/la, un/une), "
+                        "an example sentence, and a tip for remembering it."
+                    )
+                    with gr.Row():
+                        gender_word_input = gr.Textbox(
+                            label="French noun",
+                            placeholder="e.g. pomme, restaurant, voiture…",
+                            scale=4,
+                        )
+                        gender_check_btn = gr.Button("🔍 Check", variant="primary", scale=1, min_width=120)
+                    gender_result = gr.HTML()
+
+                with gr.Tab("🔁 Translator"):
+                    gr.Markdown(
+                        "Translate a word or phrase between English and French — "
+                        "with alternatives and an example in context."
+                    )
+                    trans_direction = gr.Radio(
+                        choices=["English → French", "French → English"],
+                        value="English → French",
+                        label="Direction",
+                    )
+                    trans_input = gr.Textbox(
+                        label="Text to translate",
+                        placeholder="Type something to translate…",
+                        lines=3,
+                    )
+                    with gr.Row():
+                        trans_use_context = gr.Checkbox(label="Use current lesson as context", value=False)
+                        trans_btn = gr.Button("🔁 Translate", variant="primary", min_width=140)
+                    trans_result = gr.HTML()
+
+        # ── Tab 6: Daily Summary ──────────────────────────────────────────────
         with gr.Tab("⭐ Summary"):
             refresh_summary_btn = gr.Button("Refresh summary")
             summary_display     = gr.Markdown("")
@@ -994,10 +1219,7 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
     # ── Event wiring ─────────────────────────────────────────────────────────
 
     # Page load
-    demo.load(
-        fn=on_load,
-        outputs=[user_id_state, user_display, html_out, ann_state, pages_sidebar_html, resources_display],
-    )
+    demo.load(fn=on_load, outputs=[user_id_state, html_out, ann_state, pages_sidebar_html, resources_display])
 
     # Resources tab
     refresh_resources_btn.click(
@@ -1088,22 +1310,17 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
     ).then(lambda: "", outputs=[chat_input])
     clear_btn.click(lambda: [], outputs=[chatbot])
 
-    # Text exercise
+    # Coach exercises
     gen_ex_btn.click(
-        fn=gen_text_exercise,
-        inputs=[text_input, user_id_state],
-        outputs=[text_ex_display, exercise_state],
-    )
-    check_ex_btn.click(
-        fn=check_text_answer,
-        inputs=[text_ex_answer, exercise_state, user_id_state],
-        outputs=[text_ex_feedback],
+        fn=gen_coach_exercises,
+        inputs=[text_input, ex_topic_input, user_id_state],
+        outputs=[text_ex_display],
     )
 
     # Dialogue
     gen_dial_btn.click(
         fn=gen_dialogue,
-        inputs=[text_input, user_id_state],
+        inputs=[text_input, dial_topic_input, user_id_state],
         outputs=[dial_transcript, dial_hint, dialogue_state],
     )
     send_dial_btn.click(
@@ -1112,17 +1329,17 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         outputs=[dial_transcript, dial_hint, dialogue_state, dial_feedback],
     ).then(lambda: "", outputs=[dial_input])
 
-    # Visual
+    # Visual (sample photos)
     gen_visual_btn.click(
-        fn=gen_visual_exercise,
-        inputs=[image_input, user_id_state],
-        outputs=[visual_display],
+        fn=gen_visual_sample,
+        inputs=[text_input, visual_topic_input, user_id_state],
+        outputs=[visual_photo, visual_display],
     )
 
     # Pronunciation
     get_pron_btn.click(
         fn=get_pron_target,
-        inputs=[text_input, user_id_state],
+        inputs=[text_input, pron_topic_input, user_id_state],
         outputs=[pron_target_html, pron_target_state],
     )
     speak_btn.click(
@@ -1149,6 +1366,25 @@ with gr.Blocks(title="French Coach", css=CUSTOM_CSS, theme=FC_THEME, js=PAGE_JS)
         fn=check_pronunciation,
         inputs=[pron_input, pron_target_state, user_id_state],
         outputs=[pron_feedback],
+    )
+
+    # Gender Checker
+    gender_check_btn.click(
+        fn=gender_check_handler,
+        inputs=[gender_word_input, user_id_state],
+        outputs=[gender_result],
+    )
+    gender_word_input.submit(
+        fn=gender_check_handler,
+        inputs=[gender_word_input, user_id_state],
+        outputs=[gender_result],
+    )
+
+    # Translator
+    trans_btn.click(
+        fn=translate_handler,
+        inputs=[trans_input, trans_direction, trans_use_context, text_input, user_id_state],
+        outputs=[trans_result],
     )
 
     # Summary

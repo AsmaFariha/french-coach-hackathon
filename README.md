@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: yellow
 sdk: gradio
 sdk_version: "6.17.3"
-app_file: app_custom.py
+app_file: app.py
 pinned: true
 license: apache-2.0
 tags:
@@ -61,8 +61,8 @@ It runs on **self-hosted MiniCPM models** — nothing leaves the Space.
   - <!-- BREAK-GLASS: if text runs via API instead of self-hosting, change the line
        above to: "text runs on Qwen2.5-7B-Instruct via the HF Inference API; vision
        runs on MiniCPM-V 4.6." Keep it accurate to what actually shipped. -->
-- **Custom UI** built with **gr.Server** + a React frontend served through the Gradio
-  app — past the default Gradio look (Off-Brand).
+- **Custom UI** built with a bespoke Gradio theme in French flag colours
+  (bleu #002395 / rouge #ED2939) on a warm paper background — clearly past the default Gradio look (Off-Brand).
 - **Gradio SDK Space** under the `build-small-hackathon` org.
 - **Supabase** (hosted Postgres) for persistence: notebook pages, exercises, and an
   append-only points ledger.
