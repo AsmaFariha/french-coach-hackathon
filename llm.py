@@ -128,9 +128,8 @@ def _openbmb_chat(messages: list[dict], stream: bool = False, max_tokens: int = 
             return _gen()
         return resp.choices[0].message.content or ""
     except Exception as e:
-        logger.error("OpenBMB error: %s", e)
-        msg = f"⚠ OpenBMB API unavailable ({e})"
-        return (x for x in [msg]) if stream else msg
+        logger.warning("OpenBMB API unreachable (%s) — falling back to HF Inference", e)
+        return _hf_chat(messages, stream, max_tokens)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

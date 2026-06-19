@@ -187,7 +187,9 @@ FC_THEME = gr.themes.Soft(
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
 def get_user_id(request: gr.Request) -> str:
-    return "demo_user"
+    # Single-user personal Space — use the owner username so existing Supabase
+    # rows (saved when HF OAuth was active under "Asma-F") stay visible.
+    return os.environ.get("SPACE_OWNER", "Asma-F")
 
 
 def _login_prompt() -> str:
